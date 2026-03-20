@@ -16,9 +16,33 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use App\Models\RecetaMaterial;
+use App\Models\Usuario;
 
 class ProduccionController extends Controller
 {
+    public function filtrarOrdenes(Request $request)
+    {
+        $responsable_id = $request->input('responsable_id');
+        $canManage = $this->canManageProduccion();
+        $ordenes = OrdenProduccion::with([
+            'producto:id,nombre,sku',
+            'estado:id,nombre',
+            'responsable:id,nombre',
+            'usosMaterial.material:id,nombre,stock,unidad_id',
+            'usosMaterial.material.unidad:id,nombre',
+        ])
+        ->when($responsable_id, function ($query) use ($responsable_id) {
+            return $query->where('responsable_id', $responsable_id);
+        })
+        ->orderByDesc('id')
+        ->get();
+
+        // Renderiza el partial de la tabla con las órdenes filtradas
+        return view('produccion.partials.tabla_ordenes', [
+            'ordenes' => $ordenes,
+            'canManage' => $canManage,
+        ])->render();
+    }
     public function index(): View|RedirectResponse
     {
         if (! $this->canViewModule('Produccion')) {
@@ -30,7 +54,7 @@ class ProduccionController extends Controller
         $ordenes = OrdenProduccion::with([
             'producto:id,nombre,sku',
             'estado:id,nombre',
-            'usuario:id,nombre',
+            'responsable:id,nombre',
             'usosMaterial.material:id,nombre,stock,unidad_id',
             'usosMaterial.material.unidad:id,nombre',
         ])->orderByDesc('id')->get();
@@ -39,6 +63,7 @@ class ProduccionController extends Controller
             'canManage' => $canManage,
             'productos' => ProductoTerminado::orderBy('nombre')->get(['id', 'nombre', 'sku']),
             'materiales' => Material::orderBy('nombre')->get(['id', 'nombre', 'stock', 'unidad_id']),
+            'usuarios' => Usuario::orderBy('nombre')->get(['id', 'nombre']),
             'ordenes' => $ordenes,
             'statsOrdenes' => (int) OrdenProduccion::count(),
             'statsEnProceso' => (int) OrdenProduccion::whereHas('estado', function ($query) {
@@ -59,6 +84,7 @@ class ProduccionController extends Controller
         $data = $request->validate([
             'producto_id' => ['required', 'integer', 'exists:producto_terminado,id'],
             'cantidad' => ['required', 'numeric', 'gt:0'],
+            'responsable_id' => ['required', 'integer', 'exists:usuario,id'],
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_esperada' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
             'solicitar_compra' => ['nullable', 'boolean'],
@@ -123,7 +149,9 @@ class ProduccionController extends Controller
             'fecha_esperada' => $data['fecha_esperada'] ?? null,
             'estado_id' => $estadoPendiente->id,
             'usuario_id' => (int) $request->session()->get('auth_user_id'),
+            'responsable_id' => (int) $data['responsable_id'],
         ]);
+
 
         foreach ($receta as $linea) {
             $factorMerma = 1 + ((float) $linea->merma_porcentaje / 100);
@@ -279,6 +307,7 @@ class ProduccionController extends Controller
         }
 
         $ordenProduccion->update($payload);
+
 
         return redirect()->route('produccion.index')->with('ok', 'Estado de la orden actualizado.');
     }

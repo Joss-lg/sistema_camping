@@ -15,7 +15,7 @@
         </div>
     @endif
 
-    {{-- Estado de Permisos / Formulario --}}
+    {{-- Estado de Permisos / Formulario --}} 
     @if (! $canManage)
         <div class="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-5 flex items-start gap-4">
             <div class="bg-slate-200 p-2 rounded-full">
@@ -35,8 +35,8 @@
             <form method="POST" action="{{ route('produccion.bom.store') }}" class="space-y-4">
                 @csrf
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
-                    <div class="flex flex-col gap-1.5">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-end">
+                    <div class="lg:col-span-2 flex flex-col gap-1.5">
                         <label for="producto_id" class="text-xs font-bold text-slate-600 uppercase">Producto</label>
                         <select id="producto_id" name="producto_id" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
                             <option value="">Selecciona</option>
@@ -48,7 +48,7 @@
                         </select>
                     </div>
 
-                    <div class="flex items-end gap-2 col-span-full lg:col-span-1">
+                    <div class="flex items-end">
                         <button type="button" id="addBomRow" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-md active:scale-95">
                             + Agregar material
                         </button>
@@ -65,7 +65,7 @@
                     @endphp
 
                     @for ($i = 0; $i < $rows; $i++)
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end bom-row">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bom-row">
                             <div class="flex flex-col gap-1.5">
                                 <label class="text-xs font-bold text-slate-600 uppercase">Material</label>
                                 <select name="material_id[]" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
@@ -107,8 +107,7 @@
                     @endfor
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                    <div></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div></div>
                     <div></div>
                     <div></div>

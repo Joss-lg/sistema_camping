@@ -53,7 +53,7 @@
             </div>
         </div>
     @else
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 gap-6">
             {{-- Crear Orden --}}
             <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                 <h2 class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
@@ -79,6 +79,15 @@
                             <input name="cantidad" type="number" min="0.01" step="0.01" value="{{ old('cantidad') }}" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         </div>
                         <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold text-slate-500 uppercase">Asignar Responsable (Área/Supervisor) <span class="text-red-500">*</span></label>
+                            <select name="responsable_id" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+                                <option value="">Selecciona un responsable</option>
+                                @foreach($usuarios as $usuario)
+                                    <option value="{{ $usuario->id }}" @selected((int) old('responsable_id') === (int) $usuario->id)>{{ $usuario->nombre }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-500 uppercase">Fecha inicio</label>
                             <input name="fecha_inicio" type="datetime-local" value="{{ old('fecha_inicio') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         </div>
@@ -94,58 +103,20 @@
                     <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-lg transition-all shadow-md">Guardar orden</button>
                 </form>
             </section>
-
-            {{-- Registrar Consumo --}}
-            <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-sm">
-                <h2 class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
-                    <span class="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></span>
-                    Registrar consumo de material
-                </h2>
-                <form method="POST" action="{{ route('produccion.registrar-consumo') }}" class="space-y-4">
-                    @csrf
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        <div class="flex flex-col gap-1">
-                            <label class="font-bold text-slate-600 text-[11px] uppercase">Orden</label>
-                            <select name="orden_produccion_id" required class="border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option value="">Selecciona</option>
-                                @foreach ($ordenes as $orden)
-                                    <option value="{{ $orden->id }}" @selected((int) old('orden_produccion_id') === (int) $orden->id)>#{{ $orden->id }} - {{ $orden->producto?->nombre }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="font-bold text-slate-600 text-[11px] uppercase">Material</label>
-                            <select name="material_id" required class="border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option value="">Selecciona</option>
-                                @foreach ($materiales as $material)
-                                    <option value="{{ $material->id }}" @selected((int) old('material_id') === (int) $material->id)>{{ $material->nombre }} (Stock: {{ number_format($material->stock, 2) }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="font-bold text-slate-600 text-[11px] uppercase italic">Cant. Necesaria (Opt)</label>
-                            <input name="cantidad_necesaria" type="number" step="0.01" value="{{ old('cantidad_necesaria') }}" class="border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="font-bold text-slate-600 text-[11px] uppercase text-blue-600">Cant. Usada</label>
-                            <input name="cantidad_usada" type="number" step="0.01" required value="{{ old('cantidad_usada') }}" class="border border-blue-200 bg-blue-50 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="font-bold text-slate-600 text-[11px] uppercase text-amber-600 italic">Merma (Opt)</label>
-                            <input name="cantidad_merma" type="number" step="0.01" value="{{ old('cantidad_merma', 0) }}" class="border border-amber-200 bg-amber-50 rounded-lg p-2 focus:ring-2 focus:ring-amber-500 outline-none">
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="font-bold text-slate-600 text-[11px] uppercase italic">Motivo Merma</label>
-                            <input name="motivo_merma" type="text" value="{{ old('motivo_merma') }}" placeholder="..." class="border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
-                        </div>
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg shadow-sm">Registrar consumo</button>
-                </form>
-            </section>
         </div>
     @endif
 
     {{-- Seguimiento de Órdenes --}}
+        {{-- Filtro de responsables --}}
+        <div class="flex justify-end items-center mb-4">
+            <label for="filtro-responsable" class="mr-2 text-sm font-bold text-slate-600">Filtrar por Responsable:</label>
+            <select id="filtro-responsable" class="border border-slate-300 rounded-lg p-2 text-sm bg-white">
+                <option value="">Todos</option>
+                @foreach($usuarios as $usuario)
+                    <option value="{{ $usuario->id }}">{{ $usuario->nombre }}</option>
+                @endforeach
+            </select>
+        </div>
     <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden text-sm">
         <div class="p-6 border-b border-slate-100">
             <h2 class="text-lg font-bold text-slate-800">Seguimiento de órdenes</h2>
@@ -167,7 +138,18 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
+                <tbody id="tabla-seguimiento-ordenes" class="divide-y divide-slate-100">
                     @forelse ($ordenes as $orden)
+                            <script>
+                            document.getElementById('filtro-responsable').addEventListener('change', function() {
+                                const responsableId = this.value;
+                                fetch(`{{ route('produccion.ordenes-filtradas') }}?responsable_id=${responsableId}`)
+                                    .then(response => response.text())
+                                    .then(html => {
+                                        document.getElementById('tabla-seguimiento-ordenes').innerHTML = html;
+                                    });
+                            });
+                            </script>
                         @php
                             $estado = strtoupper($orden->estado->nombre ?? 'PENDIENTE');
                             $badgeStyles = match($estado) {
@@ -196,7 +178,7 @@
                                     {{ $estado }}
                                 </span>
                             </td>
-                            <td class="p-4 text-slate-600">{{ $orden->usuario?->nombre ?? '-' }}</td>
+                            <td class="p-4 text-slate-600">{{ $orden->responsable?->nombre ?? '-' }}</td>
                             <td class="p-4 text-[11px] leading-tight text-slate-500">
                                 <div><span class="font-semibold uppercase text-[9px] text-slate-400">Inicio:</span> {{ optional($orden->fecha_inicio)->format('d/m/y H:i') ?? '-' }}</div>
                                 <div class="mt-1"><span class="font-semibold uppercase text-[9px] text-slate-400">Esper:</span> {{ optional($orden->fecha_esperada)->format('d/m/y H:i') ?? '-' }}</div>
