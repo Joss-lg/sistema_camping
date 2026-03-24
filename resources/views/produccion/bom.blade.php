@@ -15,7 +15,7 @@
         </div>
     @endif
 
-    {{-- Estado de Permisos / Formulario --}}
+    {{-- Estado de Permisos / Formulario --}} 
     @if (! $canManage)
         <div class="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-5 flex items-start gap-4">
             <div class="bg-slate-200 p-2 rounded-full">
@@ -36,6 +36,7 @@
             </h2>
             <form method="POST" action="{{ route('produccion.bom.store') }}" class="space-y-6">
                 @csrf
+
 
                 <!-- Selección de Producto -->
                 <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -64,6 +65,25 @@
                                 Agregar material
                             </button>
                         </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-end">
+                    <div class="lg:col-span-2 flex flex-col gap-1.5">
+                        <label for="producto_id" class="text-xs font-bold text-slate-600 uppercase">Producto</label>
+                        <select id="producto_id" name="producto_id" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
+                            <option value="">Selecciona</option>
+                            @foreach ($productos as $producto)
+                                <option value="{{ $producto->id }}" @selected((int) old('producto_id') === (int) $producto->id)>
+                                    {{ $producto->nombre }} ({{ $producto->sku }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="flex items-end">
+                        <button type="button" id="addBomRow" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-md active:scale-95">
+                            + Agregar material
+                        </button>
+
                     </div>
                 </div>
 
@@ -78,6 +98,7 @@
                     @endphp
 
                     @for ($i = 0; $i < $rows; $i++)
+
                         <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm bom-row">
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                                 <div class="flex flex-col gap-1.5">
@@ -96,6 +117,20 @@
                                         @endforeach
                                     </select>
                                 </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bom-row">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-bold text-slate-600 uppercase">Material</label>
+                                <select name="material_id[]" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
+                                    <option value="">Selecciona</option>
+                                    @foreach ($materiales as $material)
+                                        <option value="{{ $material->id }}" @selected((int) ($oldMaterials[$i] ?? null) === (int) $material->id)>
+                                            {{ $material->nombre }} (stock: {{ number_format((float) $material->stock, 2) }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
 
                                 <div class="flex flex-col gap-1.5">
                                     <label class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
@@ -143,6 +178,7 @@
                     @endfor
                 </div>
 
+<<<<<<< HEAD
                 <div class="flex justify-end">
                     <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,6 +186,18 @@
                         </svg>
                         Guardar líneas
                     </button>
+=======
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div>
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-md active:scale-95">
+                            Guardar líneas
+                        </button>
+                    </div>
+>>>>>>> 10f03709beacdedd537132aaeca22bf54e05f3cf
                 </div>
             </form>
         </div>

@@ -53,7 +53,7 @@
             </div>
         </div>
     @else
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 gap-6">
             {{-- Crear Orden --}}
             <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                 <h2 class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
@@ -104,6 +104,7 @@
                 </form>
             </section>
 
+
             {{-- Registrar Consumo --}}
             <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-sm">
                 <h2 class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
@@ -151,6 +152,7 @@
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg shadow-sm">Registrar consumo</button>
                 </form>
             </section>
+
         </div>
     @endif
 
@@ -185,6 +187,7 @@
                         @endif
                     </tr>
                 </thead>
+<<<<<<< HEAD
                 <tbody id="tabla-seguimiento-ordenes" class="divide-y divide-slate-100">
                     @forelse ($ordenes as $orden)
                         {{-- Aquí va el contenido de cada fila de orden, por ejemplo: --}}
@@ -196,6 +199,73 @@
                             <td class="p-4">{{ $orden->responsable?->nombre ?? '-' }}</td>
                             <td class="p-4">{{ $orden->fecha_inicio ?? '-' }}<br>{{ $orden->fecha_esperada ?? '-' }}</td>
                             <td class="p-4">{{-- Consumos material --}}</td>
+=======
+                <tbody class="divide-y divide-slate-100">
+                <tbody id="tabla-seguimiento-ordenes" class="divide-y divide-slate-100">
+                    @forelse ($ordenes as $orden)
+                            <script>
+                            document.getElementById('filtro-responsable').addEventListener('change', function() {
+                                const responsableId = this.value;
+                                fetch(`{{ route('produccion.ordenes-filtradas') }}?responsable_id=${responsableId}`)
+                                    .then(response => response.text())
+                                    .then(html => {
+                                        document.getElementById('tabla-seguimiento-ordenes').innerHTML = html;
+                                    });
+                            });
+                            </script>
+                        @php
+                            $estado = strtoupper($orden->estado->nombre ?? 'PENDIENTE');
+                            $badgeStyles = match($estado) {
+                                'EN_PROCESO' => 'bg-blue-100 text-blue-800 border-blue-200',
+                                'FINALIZADA' => 'bg-green-100 text-green-800 border-green-200',
+                                default => 'bg-slate-100 text-slate-600 border-slate-200',
+                            };
+                        @endphp
+                        <tr class="hover:bg-slate-50/50 transition-colors">
+                            <td class="p-4 font-mono text-slate-400">#{{ $orden->id }}</td>
+                            <td class="p-4">
+                                <div class="font-bold text-slate-800">{{ $orden->producto?->nombre ?? '-' }}</div>
+                                <div class="text-[10px] text-slate-400 font-mono">{{ $orden->producto?->sku ?? '' }}</div>
+                            </td>
+                            <td class="p-4">
+                                <div class="text-xs font-medium text-slate-700">
+                                    {{ number_format($orden->cantidad_completada, 2) }} / {{ number_format($orden->cantidad, 2) }}
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                                    @php $porc = min(100, max(0, ($orden->cantidad > 0 ? ($orden->cantidad_completada / $orden->cantidad) * 100 : 0))); @endphp
+                                    <div class="h-full bg-green-500 rounded-full" style="width: {{ $porc }}%"></div>
+                                </div>
+                            </td>
+                            <td class="p-4">
+                                <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold {{ $badgeStyles }}">
+                                    {{ $estado }}
+                                </span>
+                            </td>
+                            <td class="p-4 text-slate-600">{{ $orden->responsable?->nombre ?? '-' }}</td>
+                            <td class="p-4 text-[11px] leading-tight text-slate-500">
+                                <div><span class="font-semibold uppercase text-[9px] text-slate-400">Inicio:</span> {{ optional($orden->fecha_inicio)->format('d/m/y H:i') ?? '-' }}</div>
+                                <div class="mt-1"><span class="font-semibold uppercase text-[9px] text-slate-400">Esper:</span> {{ optional($orden->fecha_esperada)->format('d/m/y H:i') ?? '-' }}</div>
+                            </td>
+                            <td class="p-4">
+                                @if ($orden->usosMaterial->isEmpty())
+                                    <span class="text-slate-300 italic text-xs">Sin registros</span>
+                                @else
+                                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-2 max-h-32 overflow-y-auto shadow-inner">
+                                        @foreach ($orden->usosMaterial as $uso)
+                                            <div class="text-[10px] border-b border-slate-100 last:border-0 pb-1">
+                                                <div class="font-bold text-slate-700">{{ $uso->material?->nombre }}</div>
+                                                <div class="flex justify-between text-slate-500">
+                                                    <span>Uso: {{ number_format($uso->cantidad_usada, 2) }}</span>
+                                                    @if($uso->cantidad_merma > 0)
+                                                        <span class="text-amber-600">M: {{ number_format($uso->cantidad_merma, 2) }}</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </td>
+>>>>>>> 10f03709beacdedd537132aaeca22bf54e05f3cf
                             @if ($canManage)
                                 <td class="p-4 bg-slate-100/50">{{-- Botón actualizar --}}</td>
                             @endif

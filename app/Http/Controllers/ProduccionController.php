@@ -17,7 +17,10 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use App\Models\RecetaMaterial;
 use App\Models\Usuario;
+
 use Illuminate\Http\JsonResponse;
+
+
 
 class ProduccionController extends Controller
 {
