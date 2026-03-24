@@ -29,32 +29,45 @@
     @else
         <div class="mt-6 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <span class="w-2 h-6 bg-green-500 rounded-full"></span>
-                Nueva línea de materiales
+                <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Nueva línea de productos
             </h2>
-            <form method="POST" action="{{ route('produccion.bom.store') }}" class="space-y-4">
+            <form method="POST" action="{{ route('produccion.bom.store') }}" class="space-y-6">
                 @csrf
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
-                    <div class="flex flex-col gap-1.5">
-                        <label for="producto_id" class="text-xs font-bold text-slate-600 uppercase">Producto</label>
-                        <select id="producto_id" name="producto_id" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
-                            <option value="">Selecciona</option>
-                            @foreach ($productos as $producto)
-                                <option value="{{ $producto->id }}" @selected((int) old('producto_id') === (int) $producto->id)>
-                                    {{ $producto->nombre }} ({{ $producto->sku }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="flex items-end gap-2 col-span-full lg:col-span-1">
-                        <button type="button" id="addBomRow" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-md active:scale-95">
-                            + Agregar material
-                        </button>
+                <!-- Selección de Producto -->
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <div class="flex flex-col md:flex-row md:items-end gap-4">
+                        <div class="flex-1">
+                            <label for="producto_id" class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                </svg>
+                                Producto
+                            </label>
+                            <select id="producto_id" name="producto_id" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
+                                <option value="">Selecciona un producto</option>
+                                @foreach ($productos as $producto)
+                                    <option value="{{ $producto->id }}" @selected((int) old('producto_id') === (int) $producto->id)>
+                                        {{ $producto->nombre }} ({{ $producto->sku }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="md:w-auto">
+                            <button type="button" id="addBomRow" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
+                                Agregar material
+                            </button>
+                        </div>
                     </div>
                 </div>
 
+                <!-- Filas de Materiales -->
                 <div id="bomRows" class="space-y-4">
                     @php
                         $oldMaterials = old('material_id', []);
@@ -65,59 +78,78 @@
                     @endphp
 
                     @for ($i = 0; $i < $rows; $i++)
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end bom-row">
-                            <div class="flex flex-col gap-1.5">
-                                <label class="text-xs font-bold text-slate-600 uppercase">Material</label>
-                                <select name="material_id[]" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
-                                    <option value="">Selecciona</option>
-                                    @foreach ($materiales as $material)
-                                        <option value="{{ $material->id }}" @selected((int) ($oldMaterials[$i] ?? null) === (int) $material->id)>
-                                            {{ $material->nombre }} (stock: {{ number_format((float) $material->stock, 2) }})
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
+                        <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm bom-row">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                        </svg>
+                                        Material
+                                    </label>
+                                    <select name="material_id[]" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
+                                        <option value="">Selecciona un material</option>
+                                        @foreach ($materiales as $material)
+                                            <option value="{{ $material->id }}" @selected((int) ($oldMaterials[$i] ?? null) === (int) $material->id)>
+                                                {{ $material->nombre }} (stock: {{ number_format((float) $material->stock, 2) }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
 
-                            <div class="flex flex-col gap-1.5">
-                                <label class="text-xs font-bold text-slate-600 uppercase text-nowrap">Cant. base por unidad</label>
-                                <input name="cantidad_base[]" type="number" min="0.0001" step="0.0001" value="{{ $oldCantidades[$i] ?? '' }}" required 
-                                    class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all" placeholder="0.0000">
-                            </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h16"></path>
+                                        </svg>
+                                        Cant. base por unidad
+                                    </label>
+                                    <input name="cantidad_base[]" type="number" min="0.0001" step="0.0001" value="{{ $oldCantidades[$i] ?? '' }}" required 
+                                        class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all" placeholder="0.0000">
+                                </div>
 
-                            <div class="flex flex-col gap-1.5">
-                                <label class="text-xs font-bold text-slate-600 uppercase">Merma %</label>
-                                <input name="merma_porcentaje[]" type="number" min="0" max="100" step="0.01" value="{{ $oldMermas[$i] ?? 0 }}" 
-                                    class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all">
-                            </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                        </svg>
+                                        Merma %
+                                    </label>
+                                    <input name="merma_porcentaje[]" type="number" min="0" max="100" step="0.01" value="{{ $oldMermas[$i] ?? 0 }}" 
+                                        class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all">
+                                </div>
 
-                            <div class="flex flex-col gap-1.5">
-                                <label class="text-xs font-bold text-slate-600 uppercase">Activa</label>
-                                <select name="activo[]" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
-                                    <option value="1" @selected((string) ($oldActivos[$i] ?? '1') === '1')>Si</option>
-                                    <option value="0" @selected((string) ($oldActivos[$i] ?? '1') === '0')>No</option>
-                                </select>
-                            </div>
-
-                            <div class="flex items-end">
-                                <button type="button" class="remove-bom-row w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-md active:scale-95">
-                                    Eliminar
-                                </button>
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        Activa
+                                    </label>
+                                    <div class="flex gap-2">
+                                        <select name="activo[]" class="flex-1 border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
+                                            <option value="1" @selected((string) ($oldActivos[$i] ?? '1') === '1')>Sí</option>
+                                            <option value="0" @selected((string) ($oldActivos[$i] ?? '1') === '0')>No</option>
+                                        </select>
+                                        <button type="button" class="remove-bom-row bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-3 rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     @endfor
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    <div>
-                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-md active:scale-95">
-                            Guardar líneas
-                        </button>
-                    </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Guardar líneas
+                    </button>
                 </div>
             </form>
         </div>

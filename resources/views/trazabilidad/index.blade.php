@@ -6,10 +6,10 @@
     <div class="mb-8">
         <div class="flex items-center gap-3 mb-2">
             
-            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">3. Trazabilidad de Lotes</h1>
+            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">3. Trazabilidad de Producto Terminado</h1>
         </div>
         <p class="text-slate-500 max-w-3xl">
-            Consulta el historial completo de cada lote. Desde su creación en producción hasta su ingreso en almacén, permitiendo auditar cada movimiento y responsable.
+            Consulta el historial completo de cada producto terminado. Desde su creación en producción hasta su ingreso en almacén, permitiendo auditar cada movimiento y responsable.
         </p>
     </div>
 
@@ -17,8 +17,8 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <article class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center justify-between">
             <div>
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Total Lotes en Sistema</p>
-                <p class="text-3xl font-black text-slate-800">{{ $statsLotes }}</p>
+                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Total Productos Terminados</p>
+                <p class="text-3xl font-black text-slate-800">{{ $statsProductos }}</p>
             </div>
             <div class="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
@@ -65,59 +65,54 @@
         <div class="lg:col-span-2">
             <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h2 class="text-sm font-black text-slate-700 uppercase tracking-widest">Lotes Encontrados</h2>
+                    <h2 class="text-sm font-black text-slate-700 uppercase tracking-widest">Productos Encontrados</h2>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left">
                         <thead>
                             <tr class="bg-white border-b border-slate-100">
-                                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Información del Lote</th>
+                                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Información del Producto</th>
                                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
                                 <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Acción</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
-                            @forelse ($lotes as $lote)
-                            <tr class="hover:bg-slate-50/80 transition-colors {{ $selectedLote && $selectedLote->id == $lote->id ? 'bg-indigo-50/50' : '' }}">
+                            @forelse ($productos as $producto)
+                            <tr class="hover:bg-slate-50/80 transition-colors {{ $selectedProducto && $selectedProducto->id == $producto->id ? 'bg-indigo-50/50' : '' }}">
                                 <td class="px-6 py-4">
-                                    <div class="text-sm font-bold text-slate-800">{{ $lote->numero_lote }}</div>
+                                    <div class="text-sm font-bold text-slate-800">{{ $producto->nombre }}</div>
                                     <div class="text-[11px] text-slate-500 font-medium">
-                                        {{ $lote->producto?->nombre ?? 'Sin producto' }} 
-                                        <span class="text-slate-300 mx-1">|</span> 
-                                        <span class="font-mono text-slate-400 uppercase">{{ $lote->producto?->sku ?? '-' }}</span>
-                                    </div>
-                                    <div class="text-[10px] text-slate-400 mt-1 italic">
-                                        Prod: {{ optional($lote->fecha_produccion)->format('d M, Y') ?? 'N/A' }}
+                                        <span class="font-mono text-slate-400 uppercase">{{ $producto->sku ?? '-' }}</span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-block px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter bg-slate-100 text-slate-600 border border-slate-200">
-                                        {{ $lote->estado?->nombre ?? 'Indefinido' }}
+                                        {{ $producto->estado?->nombre ?? 'Indefinido' }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right">
-                                    <a href="{{ route('trazabilidad.index', ['q' => $q, 'lote_id' => $lote->id]) }}" 
-                                       class="inline-flex items-center gap-2 text-xs font-bold {{ $selectedLote && $selectedLote->id == $lote->id ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600' }} transition-colors">
-                                        Ver Historial
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                    <a href="{{ route('trazabilidad.index', ['q' => $q, 'producto_id' => $producto->id]) }}" 
+                                       class="inline-flex items-center gap-2 text-xs font-bold {{ $selectedProducto && $selectedProducto->id == $producto->id ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600' }} transition-colors">
+                                        Ver historial
                                     </a>
                                 </td>
                             </tr>
                             @empty
                             <tr>
                                 <td colspan="3" class="px-6 py-12 text-center text-slate-400 italic text-sm">
-                                    No se encontraron lotes con los criterios de búsqueda.
+                                    No se encontraron productos con los criterios de búsqueda.
                                 </td>
                             </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
-                @if($lotes->hasPages())
+                {{-- Paginación de productos si aplica --}}
+                {{-- @if($productos->hasPages())
                 <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/30">
-                    {{ $lotes->appends(['q' => $q])->links() }}
+                    {{ $productos->appends(['q' => $q])->links() }}
                 </div>
-                @endif
+                @endif --}}
             </section>
         </div>
 
@@ -132,24 +127,24 @@
                 </div>
                 
                 <div class="p-6">
-                    @if (! $selectedLote)
+                    @if (! $selectedProducto)
                         <div class="text-center py-10 px-4">
                             <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-dashed border-slate-200">
                                 <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
                             </div>
                             <p class="text-sm text-slate-400 font-medium leading-relaxed">
-                                Selecciona un lote de la lista para desglosar su trayectoria.
+                                Selecciona un producto de la lista para desglosar su trayectoria.
                             </p>
                         </div>
                     @else
                         <div class="mb-6 pb-4 border-b border-slate-100">
                             <div class="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Visualizando historial de:</div>
-                            <div class="text-lg font-black text-slate-800 leading-tight">{{ $selectedLote->numero_lote }}</div>
-                            <div class="text-xs text-slate-500 mt-1">{{ $selectedLote->producto?->nombre }}</div>
+                            <div class="text-lg font-black text-slate-800 leading-tight">{{ $selectedProducto->nombre }}</div>
+                            <div class="text-xs text-slate-500 mt-1">SKU: {{ $selectedProducto->sku }}</div>
                         </div>
 
                         <div class="relative pl-6 border-l-2 border-slate-100 space-y-8">
-                            @forelse ($selectedLote->pasos->sortByDesc('fecha') as $paso)
+                            @forelse ($selectedProducto->pasosTrazabilidad->sortByDesc('fecha') as $paso)
                             <div class="relative">
                                 {{-- Punto de la línea --}}
                                 <div class="absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white bg-indigo-600 shadow-sm"></div>
@@ -172,7 +167,7 @@
                             </div>
                             @empty
                             <div class="text-sm text-slate-400 italic py-4">
-                                No hay movimientos registrados para este lote.
+                                No hay movimientos registrados para este producto.
                             </div>
                             @endforelse
                         </div>

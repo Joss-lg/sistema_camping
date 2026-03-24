@@ -11,45 +11,27 @@ class TrazabilidadController extends Controller
     public function index(Request $request): View
     {
         $q = trim((string) $request->query('q', ''));
-        $selectedLoteId = (int) $request->query('lote_id', 0);
-
-        $lotes = ProductoLote::with([
-            'producto:id,nombre,sku,unidad_id',
-            'producto.unidad:id,nombre',
-            'estado:id,nombre',
-            'pasos.usuario:id,nombre',
-        ])
-            ->when($q !== '', function ($builder) use ($q) {
-                $builder->where(function ($nested) use ($q) {
-                    $nested->where('numero_lote', 'like', "%{$q}%")
-                        ->orWhereHas('producto', function ($productoQuery) use ($q) {
-                            $productoQuery->where('nombre', 'like', "%{$q}%")
-                                ->orWhere('sku', 'like', "%{$q}%");
-                        });
-                });
+        $productos = \App\Models\ProductoTerminado::with(['pasosTrazabilidad.usuario'])
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where('nombre', 'like', "%{$q}%")
+                      ->orWhere('sku', 'like', "%{$q}%");
             })
             ->orderByDesc('id')
-            ->paginate(12)
-            ->withQueryString();
+            ->get();
 
-        $selectedLote = null;
-        if ($selectedLoteId > 0) {
-            $selectedLote = ProductoLote::with([
-                'producto:id,nombre,sku,unidad_id',
-                'producto.unidad:id,nombre',
-                'estado:id,nombre',
-                'pasos.usuario:id,nombre',
-            ])->find($selectedLoteId);
-        } elseif ($lotes->count() > 0) {
-            $selectedLote = $lotes->first();
-        }
+        $selectedProductoId = (int) $request->query('producto_id', 0);
+        $selectedProducto = $selectedProductoId > 0
+            ? $productos->where('id', $selectedProductoId)->first()
+            : ($productos->first() ?? null);
 
+        $statsLotes = \App\Models\ProductoLote::count();
         return view('trazabilidad.index', [
             'q' => $q,
-            'lotes' => $lotes,
-            'selectedLote' => $selectedLote,
-            'statsLotes' => (int) ProductoLote::count(),
-            'statsMovimientos' => (int) ($selectedLote?->pasos->count() ?? 0),
+            'productos' => $productos,
+            'selectedProducto' => $selectedProducto,
+            'statsProductos' => $productos->count(),
+            'statsMovimientos' => $selectedProducto ? $selectedProducto->pasosTrazabilidad->count() : 0,
+            'statsLotes' => $statsLotes,
         ]);
     }
 }

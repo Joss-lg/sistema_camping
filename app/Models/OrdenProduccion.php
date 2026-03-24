@@ -8,6 +8,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrdenProduccion extends Model
 {
+    public function creador(): BelongsTo
+    {
+        return $this->belongsTo(Usuario::class, 'usuario_id');
+    }
+
+    public function responsable(): BelongsTo
+    {
+        return $this->belongsTo(Usuario::class, 'responsable_id');
+    }
     protected $table = 'orden_produccion';
 
     protected $fillable = [
@@ -19,6 +28,7 @@ class OrdenProduccion extends Model
         'fecha_esperada',
         'estado_id',
         'usuario_id',
+        'responsable_id',
     ];
 
     protected $casts = [

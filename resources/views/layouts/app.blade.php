@@ -37,37 +37,36 @@
             <div class="text-xl font-bold mb-5 tracking-tight">LogiCamp</div>
 
             <nav class="flex-grow grid grid-cols-2 gap-1.5 lg:block lg:space-y-1.5">
-                
                 <div class="col-span-2 mt-2 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest lg:mt-4">
                     Inicio
                 </div>
                 @if ($canViewModule('Dashboard'))
-                    <a href="{{ route('dashboard') }}" 
-                       class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('dashboard') ? 'bg-green-600/20 text-white' : '' }}">
-                        Dashboard
-                    </a>
+                    <a href="{{ route('dashboard') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('dashboard') ? 'bg-green-600/20 text-white' : '' }}">Dashboard</a>
                 @endif
 
                 <div class="col-span-2 mt-4 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest">
                     Ruta principal
                 </div>
                 @if ($canViewModule('Produccion'))
-                    <a href="{{ route('produccion.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('produccion.index') ? 'bg-green-600/20 text-white' : '' }}">1. Produccion</a>
-                    <a href="{{ route('produccion.bom.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('produccion.bom.*') ? 'bg-green-600/20 text-white' : '' }}">1.1 Ordenes y receta</a>
-                @endif
-                @if ($canViewModule('Terminados'))
-                    <a href="{{ route('terminados.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('terminados.*') ? 'bg-green-600/20 text-white' : '' }}">2. Terminados</a>
+                    <a href="{{ route('produccion.bom.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('produccion.bom.*') ? 'bg-green-600/20 text-white' : '' }}">Órdenes y recetas</a>
+                    <a href="{{ route('produccion.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('produccion.index') ? 'bg-green-600/20 text-white' : '' }}">Producción</a>
                 @endif
                 @if ($canViewModule('Trazabilidad'))
-                    <a href="{{ route('trazabilidad.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('trazabilidad.*') ? 'bg-green-600/20 text-white' : '' }}">3. Trazabilidad</a>
+                    <a href="{{ route('trazabilidad.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('trazabilidad.*') ? 'bg-green-600/20 text-white' : '' }}">Trazabilidad</a>
+                @endif
+                @if ($canViewModule('Terminados'))
+                    <a href="{{ route('terminados.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('terminados.*') ? 'bg-green-600/20 text-white' : '' }}">Terminados</a>
                 @endif
                 @if ($canViewModule('Reportes'))
-                    <a href="{{ route('reportes.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('reportes.*') ? 'bg-green-600/20 text-white' : '' }}">4. Reportes</a>
+                    <a href="{{ route('reportes.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('reportes.*') ? 'bg-green-600/20 text-white' : '' }}">Reportes</a>
                 @endif
 
                 <div class="col-span-2 mt-4 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest">
                     Soporte operativo
                 </div>
+                @if ($canViewModule('Insumos'))
+                    <a href="{{ route('insumos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('insumos.*') ? 'bg-green-600/20 text-white' : '' }}">Insumos</a>
+                @endif
                 @if ($canViewModule('Compras'))
                     <a href="{{ route('compras.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('compras.*') ? 'bg-green-600/20 text-white' : '' }}">Compras</a>
                 @endif
@@ -75,17 +74,6 @@
                     <a href="{{ route('entregas.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('entregas.*') ? 'bg-green-600/20 text-white' : '' }}">
                         @if($sessionRole === 'PROVEEDOR') Mis entregas @elseif($sessionRole === 'ALMACEN') Gestión entregas @else Entregas @endif
                     </a>
-                @endif
-                @if ($canViewModule('Insumos'))
-                    <a href="{{ route('insumos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('insumos.*') ? 'bg-green-600/20 text-white' : '' }}">Insumos</a>
-                @endif
-                @if ($sessionRole === 'PROVEEDOR')
-                    <a href="{{ route('compras.index') }}#ordenes-compra" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('compras.*') ? 'bg-green-600/20 text-white' : '' }}">
-                        Mis órdenes de compra
-                    </a>
-                @endif
-                @if ($sessionRole === 'PROVEEDOR')
-                    <a href="{{ route('entregas.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('entregas.*') ? 'bg-green-600/20 text-white' : '' }}">Mis entregas</a>
                 @endif
 
                 <div class="col-span-2 mt-4 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest">
@@ -95,7 +83,7 @@
                     <a href="{{ route('proveedores.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('proveedores.*') ? 'bg-green-600/20 text-white' : '' }}">Proveedores</a>
                 @endif
                 @if ($canViewModule('Crear usuarios y otorgar permisos'))
-                    <a href="{{ route('permisos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('permisos.*') ? 'bg-green-600/20 text-white' : '' }}">Usuarios y Permisos</a>
+                    <a href="{{ route('permisos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('permisos.*') ? 'bg-green-600/20 text-white' : '' }}">Gestión de usuarios</a>
                 @endif
             </nav>
 

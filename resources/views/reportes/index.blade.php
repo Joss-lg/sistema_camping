@@ -172,22 +172,54 @@
 
         {{-- Lotes e Insumos (Dos columnas en Desktop) --}}
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            {{-- Lotes --}}
+            {{-- Inventario General de Terminados (solo visible aquí) --}}
             <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                 <div class="bg-slate-50 px-6 py-3 border-b border-slate-100 flex justify-between items-center">
-                    <h2 class="text-xs font-bold text-slate-600 uppercase tracking-widest">Últimos Lotes</h2>
-                    <a href="{{ route('reportes.export.csv', ['type' => 'lotes', 'from' => $from, 'to' => $to]) }}" class="text-blue-600 text-[10px] font-bold uppercase hover:underline">Exportar</a>
+                    <h2 class="text-xs font-bold text-slate-600 uppercase tracking-widest">Inventario General de Terminados</h2>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left">
-                        <tbody class="divide-y divide-slate-100">
-                            @foreach ($lotes as $lote)
-                            <tr class="hover:bg-slate-50/50">
-                                <td class="px-6 py-3 text-sm font-bold text-slate-700">{{ $lote->numero_lote }}</td>
-                                <td class="px-6 py-3 text-sm text-slate-500">{{ $lote->producto?->nombre }}</td>
-                                <td class="px-6 py-3 text-right text-xs text-slate-400 italic">{{ optional($lote->fecha_produccion)->format('d/m/y') }}</td>
+                        <thead>
+                            <tr class="bg-slate-50/50">
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase">Producto</th>
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">Categoría</th>
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">Unidad</th>
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase text-right">Stock</th>
+                                <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">Rangos</th>
                             </tr>
-                            @endforeach
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse ($productos as $producto)
+                            @php $isLow = $producto->stock <= $producto->stock_minimo; @endphp
+                            <tr class="hover:bg-slate-50/80 transition-colors {{ $isLow ? 'bg-red-50/30' : '' }}">
+                                <td class="px-6 py-4">
+                                    <div class="text-sm font-bold text-slate-800">{{ $producto->nombre }}</div>
+                                    <div class="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">{{ $producto->sku }}</div>
+                                </td>
+                                <td class="px-6 py-4 text-center">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">{{ $producto->categoria?->nombre ?? '-' }}</span>
+                                </td>
+                                <td class="px-6 py-4 text-center text-sm text-slate-500">{{ $producto->unidad?->nombre ?? '-' }}</td>
+                                <td class="px-6 py-4 text-right">
+                                    <div class="text-lg font-black {{ $isLow ? 'text-red-600' : 'text-slate-800' }}">
+                                        {{ number_format((float) $producto->stock, 2) }}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-col gap-1 items-center">
+                                        <div class="w-full max-w-[100px] bg-slate-200 h-1.5 rounded-full overflow-hidden flex">
+                                            <div class="bg-blue-500 h-full" style="width: {{ min(($producto->stock / max($producto->stock_maximo, 1)) * 100, 100) }}%"></div>
+                                        </div>
+                                        <div class="flex justify-between w-full max-w-[100px] text-[9px] font-bold uppercase text-slate-400 tracking-tighter">
+                                            <span>Min: {{ number_format($producto->stock_minimo, 0) }}</span>
+                                            <span>Max: {{ number_format($producto->stock_maximo, 0) }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            @empty
+                            <tr><td colspan="5" class="px-6 py-12 text-center text-slate-400 italic">No hay productos terminados registrados.</td></tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>

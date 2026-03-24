@@ -11,17 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('entrega_proveedor', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('usuario_id')->constrained('usuario')->cascadeOnUpdate()->restrictOnDelete();
-            $table->foreignId('proveedor_id')->constrained('proveedor')->cascadeOnUpdate()->restrictOnDelete();
-            $table->foreignId('orden_compra_id')->nullable()->constrained('orden_compra')->cascadeOnUpdate()->nullOnDelete();
-            $table->dateTime('fecha_entrega');
-            $table->decimal('cantidad_entregada', 12, 2);
-            $table->string('estado_calidad', 30);
-            $table->text('observaciones')->nullable();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('entrega_proveedor')) {
+            Schema::create('entrega_proveedor', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('usuario_id')->constrained('usuario')->cascadeOnUpdate()->restrictOnDelete();
+                $table->foreignId('proveedor_id')->constrained('proveedor')->cascadeOnUpdate()->restrictOnDelete();
+                $table->foreignId('orden_compra_id')->nullable()->constrained('orden_compra')->cascadeOnUpdate()->nullOnDelete();
+                $table->dateTime('fecha_entrega');
+                $table->decimal('cantidad_entregada', 12, 2);
+                $table->string('estado_calidad', 30);
+                $table->text('observaciones')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     /**

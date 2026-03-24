@@ -54,47 +54,6 @@
     {{-- Mensajes de Error --}}
     @if ($errors->any())
         <div class="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl shadow-md">
-            <div class="flex items-center gap-3 mb-2">
-                <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                <strong class="text-red-800">Se encontraron errores:</strong>
-            </div>
-            <ul class="list-disc list-inside text-sm text-red-700 space-y-1 ml-2">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    {{-- Secciones de Gestión --}}
-    @if ($canManage)
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-            
-            {{-- Crear Producto --}}
-            <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                <div class="bg-slate-50 px-6 py-4 border-b border-slate-100">
-                    <h2 class="text-sm font-bold text-slate-700 uppercase tracking-tighter">Nuevo Producto Terminado</h2>
-                </div>
-                <form method="POST" action="{{ route('terminados.productos.store') }}" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
-                    @csrf
-                    <div class="md:col-span-2 flex flex-col gap-1">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Nombre del Producto</label>
-                        <input name="nombre" type="text" value="{{ old('nombre') }}" required class="border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-green-500/10 outline-none">
-                    </div>
-                    <div class="flex flex-col gap-1">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">SKU</label>
-                        <input name="sku" type="text" value="{{ old('sku') }}" required class="border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-green-500/10 outline-none">
-                    </div>
-                    <div class="flex flex-col gap-1">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Categoría</label>
-                        <select name="categoria_id" required class="border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-green-500/10 outline-none bg-white">
-                            <option value="">Selecciona</option>
-                            @foreach ($categorias as $categoria)
-                                <option value="{{ $categoria->id }}" @selected(old('categoria_id') == $categoria->id)>{{ $categoria->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-1">
                         <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Stock Inicial</label>
                         <input name="stock" type="number" step="0.01" value="{{ old('stock', 0) }}" class="border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-green-500/10 outline-none font-mono">
                     </div>
@@ -236,51 +195,5 @@
         </div>
     </section>
 
-    {{-- Auditoría de Lotes --}}
-    <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div class="bg-slate-50 px-6 py-4 border-b border-slate-100">
-            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-widest">Auditoría de Lotes y Movimientos</h2>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="bg-slate-50/50">
-                        <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase">Lote</th>
-                        <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase text-center">Estado</th>
-                        <th class="px-6 py-3 text-[10px] font-bold text-slate-400 uppercase">Último Paso / Actividad</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @foreach ($lotes as $lote)
-                        @php $ultimoPaso = $lote->pasos->sortByDesc('fecha')->first(); @endphp
-                        <tr>
-                            <td class="px-6 py-4">
-                                <div class="text-sm font-black text-slate-700">{{ $lote->numero_lote }}</div>
-                                <div class="text-[10px] text-slate-400">{{ optional($lote->fecha_produccion)->format('d/m/Y H:i') }}</div>
-                            </td>
-                            <td class="px-6 py-4 text-center">
-                                <span class="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest border border-blue-100">
-                                    {{ $lote->estado?->nombre ?? '-' }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4">
-                                @if ($ultimoPaso)
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-slate-800 uppercase">{{ $ultimoPaso->etapa }}</span>
-                                        <p class="text-[11px] text-slate-500 leading-tight">{{ $ultimoPaso->descripcion }}</p>
-                                        <span class="text-[9px] text-slate-400 mt-1 uppercase font-medium">
-                                            Por: {{ $ultimoPaso->usuario?->nombre }} · {{ $ultimoPaso->fecha->diffForHumans() }}
-                                        </span>
-                                    </div>
-                                @else
-                                    <span class="text-[11px] text-slate-400 italic italic">Sin movimientos registrados</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </section>
-</div>
+   
 @endsection

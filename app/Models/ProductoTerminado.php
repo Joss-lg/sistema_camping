@@ -8,6 +8,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductoTerminado extends Model
 {
+    public function pasosTrazabilidad()
+    {
+        return $this->hasManyThrough(
+            PasoTrazabilidad::class,
+            ProductoLote::class,
+            'producto_id', // Foreign key en ProductoLote
+            'lote_id',     // Foreign key en PasoTrazabilidad
+            'id',          // Local key en ProductoTerminado
+            'id'           // Local key en ProductoLote
+        );
+    }
     protected $table = 'producto_terminado';
 
     protected $fillable = [

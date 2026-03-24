@@ -18,6 +18,7 @@ Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/permisos/{id}/editar', [PermisoController::class, 'edit'])->name('permisos.edit');
 Route::middleware('session.auth')->group(function () {
+		Route::get('/produccion/ordenes-filtradas', [ProduccionController::class, 'filtrarOrdenes'])->name('produccion.ordenes-filtradas');
 	Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 	Route::get('/compras', [CompraController::class, 'index'])->name('compras.index');
 	Route::get('/insumos', [InsumoController::class, 'index'])->name('insumos.index');

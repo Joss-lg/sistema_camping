@@ -14,20 +14,26 @@ class ReporteController extends Controller
 {
     public function index(Request $request)
     {
+        $productos = \App\Models\ProductoTerminado::with(['categoria:id,nombre', 'unidad:id,nombre'])
+            ->orderBy('nombre')
+            ->get();
         [$from, $to, $fromRaw, $toRaw] = $this->resolveRange($request);
 
         $entregas = EntregaProveedor::with(['proveedor:id,nombre', 'material:id,nombre'])
-            ->whereBetween('fecha_entrega', [$from, $to])
+            ->whereDate('fecha_entrega', '>=', $fromRaw)
+            ->whereDate('fecha_entrega', '<=', $toRaw)
             ->orderByDesc('fecha_entrega')
             ->get();
 
         $ordenesProduccion = OrdenProduccion::with(['producto:id,nombre,sku', 'estado:id,nombre'])
-            ->whereBetween('created_at', [$from, $to])
+            ->whereDate('created_at', '>=', $fromRaw)
+            ->whereDate('created_at', '<=', $toRaw)
             ->orderByDesc('id')
             ->get();
 
         $lotes = ProductoLote::with(['producto:id,nombre,sku', 'estado:id,nombre'])
-            ->whereBetween('fecha_produccion', [$from, $to])
+            ->whereDate('fecha_produccion', '>=', $fromRaw)
+            ->whereDate('fecha_produccion', '<=', $toRaw)
             ->orderByDesc('fecha_produccion')
             ->get();
 
@@ -43,6 +49,7 @@ class ReporteController extends Controller
             'ordenesProduccion' => $ordenesProduccion,
             'lotes' => $lotes,
             'insumosBajo' => $insumosBajo,
+            'productos' => $productos,
             'statsEntregas' => (int) $entregas->count(),
             'statsCantidadEntregada' => (float) $entregas->sum('cantidad_entregada'),
             'statsOrdenesProduccion' => (int) $ordenesProduccion->count(),
@@ -54,12 +61,12 @@ class ReporteController extends Controller
 
     public function exportCsv(Request $request): StreamedResponse
     {
-        [$from, $to] = $this->resolveRange($request);
+        [$from, $to, $fromRaw, $toRaw] = $this->resolveRange($request);
         $type = (string) $request->query('type', 'entregas');
 
         $filename = 'reporte_'.$type.'_'.now()->format('Ymd_His').'.csv';
 
-        return response()->streamDownload(function () use ($type, $from, $to): void {
+        return response()->streamDownload(function () use ($type, $fromRaw, $toRaw): void {
             $handle = fopen('php://output', 'w');
             if ($handle === false) {
                 return;
@@ -68,7 +75,8 @@ class ReporteController extends Controller
             if ($type === 'produccion') {
                 fputcsv($handle, ['orden_id', 'producto', 'sku', 'estado', 'cantidad_objetivo', 'cantidad_completada', 'cantidad_ingresada', 'fecha_registro']);
                 OrdenProduccion::with(['producto:id,nombre,sku', 'estado:id,nombre'])
-                    ->whereBetween('created_at', [$from, $to])
+                    ->whereDate('created_at', '>=', $fromRaw)
+                    ->whereDate('created_at', '<=', $toRaw)
                     ->orderByDesc('id')
                     ->chunk(200, function ($rows) use ($handle): void {
                         foreach ($rows as $orden) {
@@ -87,7 +95,8 @@ class ReporteController extends Controller
             } elseif ($type === 'lotes') {
                 fputcsv($handle, ['lote_id', 'numero_lote', 'producto', 'sku', 'estado', 'fecha_produccion']);
                 ProductoLote::with(['producto:id,nombre,sku', 'estado:id,nombre'])
-                    ->whereBetween('fecha_produccion', [$from, $to])
+                    ->whereDate('fecha_produccion', '>=', $fromRaw)
+                    ->whereDate('fecha_produccion', '<=', $toRaw)
                     ->orderByDesc('id')
                     ->chunk(200, function ($rows) use ($handle): void {
                         foreach ($rows as $lote) {
@@ -121,7 +130,8 @@ class ReporteController extends Controller
             } else {
                 fputcsv($handle, ['entrega_id', 'fecha_entrega', 'proveedor', 'material', 'cantidad', 'estado_calidad', 'estado_revision']);
                 EntregaProveedor::with(['proveedor:id,nombre', 'material:id,nombre'])
-                    ->whereBetween('fecha_entrega', [$from, $to])
+                    ->whereDate('fecha_entrega', '>=', $fromRaw)
+                    ->whereDate('fecha_entrega', '<=', $toRaw)
                     ->orderByDesc('fecha_entrega')
                     ->chunk(200, function ($rows) use ($handle): void {
                         foreach ($rows as $entrega) {
@@ -146,12 +156,15 @@ class ReporteController extends Controller
 
     private function resolveRange(Request $request): array
     {
-        $fromRaw = (string) $request->query('from', now()->subDays(30)->toDateString());
-        $toRaw = (string) $request->query('to', now()->toDateString());
+        $fromRaw = (string) $request->query('from', now()->subDays(30)->format('Y-m-d'));
+        $toRaw = (string) $request->query('to', now()->format('Y-m-d'));
 
-        $from = Carbon::parse($fromRaw)->startOfDay();
-        $to = Carbon::parse($toRaw)->endOfDay();
+        // Convertir las fechas en strings YYYY-MM-DD a Carbon
+        // Usar parsing estricto para evitar problemas de timezone
+        $from = Carbon::createFromFormat('Y-m-d', $fromRaw)->startOfDay();
+        $to = Carbon::createFromFormat('Y-m-d', $toRaw)->endOfDay();
 
+        // Si "to" es anterior a "from", intercambiarlas
         if ($to->lt($from)) {
             [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
             [$fromRaw, $toRaw] = [$from->toDateString(), $to->toDateString()];

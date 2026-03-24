@@ -79,6 +79,15 @@
                             <input name="cantidad" type="number" min="0.01" step="0.01" value="{{ old('cantidad') }}" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         </div>
                         <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold text-slate-500 uppercase">Asignar Responsable (Área/Supervisor) <span class="text-red-500">*</span></label>
+                            <select name="responsable_id" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+                                <option value="">Selecciona un responsable</option>
+                                @foreach($usuarios as $usuario)
+                                    <option value="{{ $usuario->id }}" @selected((int) old('responsable_id') === (int) $usuario->id)>{{ $usuario->nombre }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-500 uppercase">Fecha inicio</label>
                             <input name="fecha_inicio" type="datetime-local" value="{{ old('fecha_inicio') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         </div>
@@ -101,7 +110,7 @@
                     <span class="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></span>
                     Registrar consumo de material
                 </h2>
-                <form method="POST" action="{{ route('produccion.registrar-consumo') }}" class="space-y-4">
+                <form id="form-registrar-consumo" method="POST" action="{{ route('produccion.registrar-consumo') }}" class="space-y-4">
                     @csrf
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div class="flex flex-col gap-1">
@@ -146,6 +155,16 @@
     @endif
 
     {{-- Seguimiento de Órdenes --}}
+        {{-- Filtro de responsables --}}
+        <div class="flex justify-end items-center mb-4">
+            <label for="filtro-responsable" class="mr-2 text-sm font-bold text-slate-600">Filtrar por Responsable:</label>
+            <select id="filtro-responsable" class="border border-slate-300 rounded-lg p-2 text-sm bg-white">
+                <option value="">Todos</option>
+                @foreach($usuarios as $usuario)
+                    <option value="{{ $usuario->id }}">{{ $usuario->nombre }}</option>
+                @endforeach
+            </select>
+        </div>
     <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden text-sm">
         <div class="p-6 border-b border-slate-100">
             <h2 class="text-lg font-bold text-slate-800">Seguimiento de órdenes</h2>
@@ -166,89 +185,40 @@
                         @endif
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody id="tabla-seguimiento-ordenes" class="divide-y divide-slate-100">
                     @forelse ($ordenes as $orden)
-                        @php
-                            $estado = strtoupper($orden->estado->nombre ?? 'PENDIENTE');
-                            $badgeStyles = match($estado) {
-                                'EN_PROCESO' => 'bg-blue-100 text-blue-800 border-blue-200',
-                                'FINALIZADA' => 'bg-green-100 text-green-800 border-green-200',
-                                default => 'bg-slate-100 text-slate-600 border-slate-200',
-                            };
-                        @endphp
-                        <tr class="hover:bg-slate-50/50 transition-colors">
-                            <td class="p-4 font-mono text-slate-400">#{{ $orden->id }}</td>
-                            <td class="p-4">
-                                <div class="font-bold text-slate-800">{{ $orden->producto?->nombre ?? '-' }}</div>
-                                <div class="text-[10px] text-slate-400 font-mono">{{ $orden->producto?->sku ?? '' }}</div>
-                            </td>
-                            <td class="p-4">
-                                <div class="text-xs font-medium text-slate-700">
-                                    {{ number_format($orden->cantidad_completada, 2) }} / {{ number_format($orden->cantidad, 2) }}
-                                </div>
-                                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1.5 overflow-hidden">
-                                    @php $porc = min(100, max(0, ($orden->cantidad > 0 ? ($orden->cantidad_completada / $orden->cantidad) * 100 : 0))); @endphp
-                                    <div class="h-full bg-green-500 rounded-full" style="width: {{ $porc }}%"></div>
-                                </div>
-                            </td>
-                            <td class="p-4">
-                                <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold {{ $badgeStyles }}">
-                                    {{ $estado }}
-                                </span>
-                            </td>
-                            <td class="p-4 text-slate-600">{{ $orden->usuario?->nombre ?? '-' }}</td>
-                            <td class="p-4 text-[11px] leading-tight text-slate-500">
-                                <div><span class="font-semibold uppercase text-[9px] text-slate-400">Inicio:</span> {{ optional($orden->fecha_inicio)->format('d/m/y H:i') ?? '-' }}</div>
-                                <div class="mt-1"><span class="font-semibold uppercase text-[9px] text-slate-400">Esper:</span> {{ optional($orden->fecha_esperada)->format('d/m/y H:i') ?? '-' }}</div>
-                            </td>
-                            <td class="p-4">
-                                @if ($orden->usosMaterial->isEmpty())
-                                    <span class="text-slate-300 italic text-xs">Sin registros</span>
-                                @else
-                                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-2 max-h-32 overflow-y-auto shadow-inner">
-                                        @foreach ($orden->usosMaterial as $uso)
-                                            <div class="text-[10px] border-b border-slate-100 last:border-0 pb-1">
-                                                <div class="font-bold text-slate-700">{{ $uso->material?->nombre }}</div>
-                                                <div class="flex justify-between text-slate-500">
-                                                    <span>Uso: {{ number_format($uso->cantidad_usada, 2) }}</span>
-                                                    @if($uso->cantidad_merma > 0)
-                                                        <span class="text-amber-600">M: {{ number_format($uso->cantidad_merma, 2) }}</span>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            </td>
+                        {{-- Aquí va el contenido de cada fila de orden, por ejemplo: --}}
+                        <tr>
+                            <td class="p-4 font-mono text-xs text-blue-600 font-bold">#{{ $orden->id }}</td>
+                            <td class="p-4">{{ $orden->producto?->nombre }}<br><span class="text-xs text-slate-400">{{ $orden->producto?->sku }}</span></td>
+                            <td class="p-4">{{ $orden->progreso ?? '-' }}</td>
+                            <td class="p-4">{{ $orden->estado?->nombre ?? '-' }}</td>
+                            <td class="p-4">{{ $orden->responsable?->nombre ?? '-' }}</td>
+                            <td class="p-4">{{ $orden->fecha_inicio ?? '-' }}<br>{{ $orden->fecha_esperada ?? '-' }}</td>
+                            <td class="p-4">{{-- Consumos material --}}</td>
                             @if ($canManage)
-                                <td class="p-4 bg-slate-50/50">
-                                    <form method="POST" action="{{ route('produccion.update-estado', $orden->id) }}" class="flex flex-col gap-1.5">
-                                        @csrf
-                                        @method('PATCH')
-                                        <select name="estado" class="text-[10px] p-1 border border-slate-300 rounded bg-white">
-                                            <option value="PENDIENTE" @selected($estado === 'PENDIENTE')>PENDIENTE</option>
-                                            <option value="EN_PROCESO" @selected($estado === 'EN_PROCESO')>EN_PROCESO</option>
-                                            <option value="FINALIZADA" @selected($estado === 'FINALIZADA')>FINALIZADA</option>
-                                        </select>
-                                        <input type="number" name="cantidad_completada" min="0" step="0.01" 
-                                            value="{{ number_format($orden->cantidad_completada, 2, '.', '') }}"
-                                            class="text-[10px] p-1 border border-slate-300 rounded focus:ring-1 focus:ring-green-400 outline-none"
-                                            placeholder="Completada">
-                                        <button type="submit" class="bg-slate-800 text-white text-[9px] font-bold py-1 rounded hover:bg-black transition-colors">ACTUALIZAR</button>
-                                    </form>
-                                </td>
+                                <td class="p-4 bg-slate-100/50">{{-- Botón actualizar --}}</td>
                             @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $canManage ? 8 : 7 }}" class="p-12 text-center text-slate-400 italic">
-                                Aún no hay órdenes de producción registradas.
-                            </td>
+                            <td colspan="8" class="p-6 text-center text-slate-400 italic">No hay órdenes registradas.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </section>
-</div>
+
+    <script>
+        document.getElementById('filtro-responsable').addEventListener('change', function() {
+            const responsableId = this.value;
+            fetch(`{{ route('produccion.ordenes-filtradas') }}?responsable_id=${responsableId}`)
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('tabla-seguimiento-ordenes').innerHTML = html;
+                });
+        });
+    </script>
+
 @endsection
