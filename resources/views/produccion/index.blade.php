@@ -11,21 +11,21 @@
                 Primer bloque del flujo operativo: crea órdenes, cambia estado y registra consumo real de materiales.
             </p>
         </div>
-        
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full lg:w-auto">
-            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-w-[160px]">
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-w-[120px]">
                 <span class="text-xs font-bold text-slate-400 uppercase">Órdenes</span>
                 <div class="text-2xl font-bold text-slate-800">{{ $statsOrdenes }}</div>
             </div>
-            <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 shadow-sm min-w-[160px]">
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 shadow-sm min-w-[120px]">
                 <span class="text-xs font-bold text-blue-400 uppercase">En Proceso</span>
                 <div class="text-2xl font-bold text-blue-700">{{ $statsEnProceso }}</div>
             </div>
-            <div class="bg-green-50 border border-green-100 rounded-xl p-4 shadow-sm min-w-[160px]">
+            <div class="bg-green-50 border border-green-100 rounded-xl p-4 shadow-sm min-w-[120px]">
                 <span class="text-xs font-bold text-green-400 uppercase">Finalizadas</span>
                 <div class="text-2xl font-bold text-green-700">{{ $statsFinalizadas }}</div>
             </div>
-            <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 shadow-sm min-w-[160px]">
+            <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 shadow-sm min-w-[120px]">
                 <span class="text-xs font-bold text-amber-500 uppercase">Merma Mes</span>
                 <div class="text-2xl font-bold text-amber-700">{{ number_format($statsMerma, 2) }}</div>
                 <div class="text-[11px] text-amber-600">{{ number_format($statsMermaPorcentaje, 2) }}%</div>
