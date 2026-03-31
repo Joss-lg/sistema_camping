@@ -2,119 +2,259 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use App\Models\CategoriaInsumo;
+use App\Models\Insumo;
+use App\Models\LoteInsumo;
+use App\Models\OrdenCompra;
+use App\Models\OrdenProduccion;
+use App\Models\Permission;
+use App\Models\Proveedor;
+use App\Models\Role;
+use App\Models\TipoProducto;
+use App\Models\UbicacionAlmacen;
+use App\Models\UnidadMedida;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ProduccionFlowTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
+
+    public function test_creating_production_order_reserves_materials(): void
+    {
+        $fixtures = $this->crearFixturesProduccion();
+
+        $stockInicial = (float) $fixtures['insumo']->stock_actual;
+
+        $this->actingAs($fixtures['user'])->post(route('produccion.store'), [
+            'producto_id' => $fixtures['tipoProducto']->id,
+            'cantidad' => 20,
+            'responsable_id' => $fixtures['user']->id,
+            'fecha_inicio' => now()->toDateString(),
+            'fecha_esperada' => now()->addDay()->toDateString(),
+        ])->assertRedirect(route('produccion.index'));
+
+        $orden = OrdenProduccion::query()->latest('id')->first();
+        $this->assertNotNull($orden);
+        $this->assertSame('Pendiente', (string) $orden->estado);
+        $this->assertSame(20.0, (float) $orden->cantidad_produccion);
+
+        $fixtures['insumo']->refresh();
+        $this->assertSame($stockInicial, (float) $fixtures['insumo']->stock_actual);
+    }
+
+    public function test_registering_consumption_adjusts_stock_correctly(): void
+    {
+        $fixtures = $this->crearFixturesProduccion();
+
+        $this->actingAs($fixtures['user'])->post(route('produccion.store'), [
+            'producto_id' => $fixtures['tipoProducto']->id,
+            'cantidad' => 20,
+            'responsable_id' => $fixtures['user']->id,
+            'fecha_inicio' => now()->toDateString(),
+            'fecha_esperada' => now()->addDay()->toDateString(),
+        ])->assertRedirect(route('produccion.index'));
+
+        $orden = OrdenProduccion::query()->latest('id')->firstOrFail();
+        $stockInicial = (float) $fixtures['insumo']->stock_actual;
+        $loteStockInicial = (float) $fixtures['lote']->cantidad_en_stock;
+
+        $this->actingAs($fixtures['user'])->post(route('produccion.registrar-consumo'), [
+            'orden_produccion_id' => $orden->id,
+            'material_id' => $fixtures['insumo']->id,
+            'cantidad_usada' => 10,
+            'cantidad_merma' => 2,
+            'motivo_merma' => 'Desperdicio en corte',
+            'tipo_merma' => 'Corte',
+        ])->assertRedirect(route('produccion.index'));
+
+        $fixtures['insumo']->refresh();
+        $fixtures['lote']->refresh();
+
+        $this->assertSame($stockInicial - 12.0, (float) $fixtures['insumo']->stock_actual);
+        $this->assertSame($loteStockInicial - 12.0, (float) $fixtures['lote']->cantidad_en_stock);
+        $this->assertSame(12.0, (float) $fixtures['lote']->cantidad_consumida);
+
+        $this->assertDatabaseHas('consumos_materiales', [
+            'orden_produccion_id' => $orden->id,
+            'insumo_id' => $fixtures['insumo']->id,
+            'cantidad_consumida' => 10,
+            'cantidad_desperdicio' => 2,
+        ]);
+    }
+
+    public function test_cancelling_production_order_releases_reserved_materials(): void
+    {
+        $fixtures = $this->crearFixturesProduccion();
+
+        $this->actingAs($fixtures['user'])->post(route('produccion.store'), [
+            'producto_id' => $fixtures['tipoProducto']->id,
+            'cantidad' => 20,
+            'responsable_id' => $fixtures['user']->id,
+            'fecha_inicio' => now()->toDateString(),
+            'fecha_esperada' => now()->addDay()->toDateString(),
+        ])->assertRedirect(route('produccion.index'));
+
+        $orden = OrdenProduccion::query()->latest('id')->firstOrFail();
+
+        $this->actingAs($fixtures['user'])
+            ->patch(route('produccion.cancelar', ['id' => $orden->id]))
+            ->assertRedirect(route('produccion.index'));
+
+        $orden->refresh();
+        $this->assertSame('Cancelada', (string) $orden->estado);
+    }
 
     public function test_admin_can_create_order_and_register_material_consumption(): void
     {
-        if (! Schema::hasTable('estado') || ! Schema::hasTable('orden_produccion') || ! Schema::hasTable('material')) {
-            $this->markTestSkipped('El entorno de pruebas no tiene el esquema de dominio de produccion cargado.');
-        }
+        $fixtures = $this->crearFixturesProduccion();
 
-        $estadoGeneralId = DB::table('estado')->insertGetId([
-            'nombre' => 'Activo',
-            'tipo' => 'general',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $usuarioId = DB::table('usuario')->insertGetId([
-            'nombre' => 'Admin Prueba',
-            'email' => 'admin-produccion@example.test',
-            'password' => bcrypt('secret123'),
-            'rol' => 'ADMIN',
-            'estado_id' => $estadoGeneralId,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $categoriaProductoId = DB::table('categoria_producto')->insertGetId([
-            'nombre' => 'Categoria Test Produccion',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $unidadId = DB::table('unidad_medida')->insertGetId([
-            'nombre' => 'Unidad Test Produccion',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $estadoProductoId = DB::table('estado')->insertGetId([
-            'nombre' => 'Activo',
-            'tipo' => 'producto',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $productoId = DB::table('producto_terminado')->insertGetId([
-            'nombre' => 'Producto Test Produccion',
-            'sku' => 'SKU-PROD-TEST-001',
-            'categoria_id' => $categoriaProductoId,
-            'unidad_id' => $unidadId,
-            'stock' => 0,
-            'stock_minimo' => 0,
-            'stock_maximo' => 100,
-            'precio_venta' => 10,
-            'estado_id' => $estadoProductoId,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $categoriaMaterialId = DB::table('categoria_material')->insertGetId([
-            'nombre' => 'Categoria Material Test Produccion',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $materialId = DB::table('material')->insertGetId([
-            'nombre' => 'Material Test Produccion',
-            'categoria_id' => $categoriaMaterialId,
-            'unidad_id' => $unidadId,
-            'stock' => 50,
-            'stock_minimo' => 5,
-            'stock_maximo' => 120,
-            'proveedor_id' => null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $this->withSession([
-            'auth_user_id' => $usuarioId,
-            'auth_user_rol' => 'ADMIN',
-            'auth_user_nombre' => 'Admin Prueba',
-        ])->post(route('produccion.store'), [
-            'producto_id' => $productoId,
+        $this->actingAs($fixtures['user'])->post(route('produccion.store'), [
+            'producto_id' => $fixtures['tipoProducto']->id,
             'cantidad' => 20,
+            'responsable_id' => $fixtures['user']->id,
+            'fecha_inicio' => now()->toDateString(),
+            'fecha_esperada' => now()->addDay()->toDateString(),
         ])->assertRedirect(route('produccion.index'));
 
-        $ordenId = (int) DB::table('orden_produccion')->where('producto_id', $productoId)->max('id');
+        $orden = OrdenProduccion::query()->latest('id')->firstOrFail();
 
-        $this->assertTrue($ordenId > 0);
+        $this->assertTrue($orden->id > 0);
 
-        $this->withSession([
-            'auth_user_id' => $usuarioId,
-            'auth_user_rol' => 'ADMIN',
-            'auth_user_nombre' => 'Admin Prueba',
-        ])->post(route('produccion.registrar-consumo'), [
-            'orden_produccion_id' => $ordenId,
-            'material_id' => $materialId,
-            'cantidad_necesaria' => 8,
-            'cantidad_usada' => 8,
+        $this->actingAs($fixtures['user'])->post(route('produccion.registrar-consumo'), [
+            'orden_produccion_id' => $orden->id,
+            'material_id' => $fixtures['insumo']->id,
+            'cantidad_usada' => 6,
         ])->assertRedirect(route('produccion.index'));
 
-        $this->assertDatabaseHas('uso_material', [
-            'orden_produccion_id' => $ordenId,
-            'material_id' => $materialId,
+        $this->assertDatabaseHas('consumos_materiales', [
+            'orden_produccion_id' => $orden->id,
+            'insumo_id' => $fixtures['insumo']->id,
+        ]);
+    }
+
+    /**
+     * @return array{user: User, tipoProducto: TipoProducto, insumo: Insumo, lote: LoteInsumo}
+     */
+    private function crearFixturesProduccion(): array
+    {
+        $role = Role::query()->create([
+            'nombre' => 'Admin Produccion',
+            'slug' => 'admin-produccion',
+            'nivel_acceso' => 90,
         ]);
 
-        $stockMaterial = (float) DB::table('material')->where('id', $materialId)->value('stock');
-        $this->assertEquals(42.0, $stockMaterial);
+        Permission::query()->create([
+            'role_id' => $role->id,
+            'modulo' => 'Produccion',
+            'puede_ver' => true,
+            'puede_crear' => true,
+            'puede_editar' => true,
+            'puede_eliminar' => true,
+            'puede_aprobar' => true,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Admin Prueba',
+            'email' => 'admin-produccion@example.test',
+            'password' => 'secret123',
+            'role_id' => $role->id,
+            'activo' => true,
+            'departamento' => 'produccion',
+        ]);
+
+        $unidad = UnidadMedida::query()->create([
+            'nombre' => 'Unidad Test Produccion',
+            'abreviatura' => 'utp',
+            'tipo' => 'Cantidad',
+            'activo' => true,
+        ]);
+
+        $tipoProducto = TipoProducto::query()->create([
+            'nombre' => 'Producto Test Produccion',
+            'slug' => 'sku-prod-test-001',
+            'activo' => true,
+        ]);
+
+        $ubicacion = UbicacionAlmacen::query()->create([
+            'codigo_ubicacion' => 'ALM-PRD-01',
+            'nombre' => 'Almacen Produccion',
+            'tipo' => 'General',
+            'capacidad_actual' => 0,
+            'activo' => true,
+        ]);
+
+        $proveedor = Proveedor::query()->create([
+            'codigo_proveedor' => 'PROV-PRD-001',
+            'razon_social' => 'Proveedor Produccion SA',
+            'tipo_proveedor' => 'Textiles',
+            'estatus' => 'Activo',
+        ]);
+
+        $categoria = CategoriaInsumo::query()->create([
+            'nombre' => 'Categoria Insumo Test',
+            'slug' => 'categoria-insumo-test',
+            'activo' => true,
+        ]);
+
+        $insumo = Insumo::query()->create([
+            'codigo_insumo' => 'INS-PRD-001',
+            'nombre' => 'Insumo Test Produccion',
+            'categoria_insumo_id' => $categoria->id,
+            'unidad_medida_id' => $unidad->id,
+            'tipo_producto_id' => $tipoProducto->id,
+            'stock_minimo' => 5,
+            'stock_actual' => 100,
+            'stock_reservado' => 0,
+            'proveedor_id' => $proveedor->id,
+            'precio_unitario' => 10,
+            'precio_costo' => 8,
+            'ubicacion_almacen_id' => $ubicacion->id,
+            'estado' => 'Activo',
+            'activo' => true,
+            'unidad_compra' => 'pz',
+            'cantidad_minima_orden' => 1,
+        ]);
+
+        $ordenCompra = OrdenCompra::query()->create([
+            'numero_orden' => 'OC-PRD-001',
+            'proveedor_id' => $proveedor->id,
+            'user_id' => $user->id,
+            'fecha_orden' => now(),
+            'fecha_entrega_prevista' => now()->addDay()->toDateString(),
+            'estado' => 'Confirmada',
+            'total_items' => 1,
+            'total_cantidad' => 100,
+            'subtotal' => 1000,
+            'impuestos' => 0,
+            'descuentos' => 0,
+            'costo_flete' => 0,
+            'monto_total' => 1000,
+        ]);
+
+        $lote = LoteInsumo::query()->create([
+            'numero_lote' => 'LOT-PRD-001',
+            'insumo_id' => $insumo->id,
+            'orden_compra_id' => $ordenCompra->id,
+            'proveedor_id' => $proveedor->id,
+            'fecha_lote' => now()->toDateString(),
+            'fecha_recepcion' => now(),
+            'cantidad_recibida' => 100,
+            'cantidad_en_stock' => 100,
+            'cantidad_consumida' => 0,
+            'cantidad_rechazada' => 0,
+            'ubicacion_almacen_id' => $ubicacion->id,
+            'estado_calidad' => 'Aceptado',
+            'activo' => true,
+            'user_recepcion_id' => $user->id,
+        ]);
+
+        return [
+            'user' => $user,
+            'tipoProducto' => $tipoProducto,
+            'insumo' => $insumo,
+            'lote' => $lote,
+        ];
     }
 }

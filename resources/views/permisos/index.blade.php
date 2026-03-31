@@ -39,9 +39,9 @@
                 <div class="flex flex-col gap-1.5">
                     <label class="text-sm font-semibold text-slate-600">Rol de Sistema</label>
                     <select name="rol" id="rol" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="ADMIN" {{ old('rol') == 'ADMIN' ? 'selected' : '' }}>ADMIN</option>
-                        <option value="ALMACEN" {{ old('rol') == 'ALMACEN' ? 'selected' : '' }}>ALMACEN</option>
-                
+                        @foreach ($rolesDisponibles as $rol)
+                            <option value="{{ $rol }}" {{ old('rol', $rolesDisponibles[0] ?? '') == $rol ? 'selected' : '' }}>{{ $rol }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="flex flex-col gap-1.5">
@@ -102,15 +102,11 @@
                 <a href="{{ route('permisos.index') }}" class="px-3 py-1 text-xs font-bold rounded-lg transition-all {{ !$rolFiltro ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
                     Todos
                 </a>
-                <a href="{{ route('permisos.index', ['rol' => 'ADMIN']) }}" class="px-3 py-1 text-xs font-bold rounded-lg transition-all {{ $rolFiltro == 'ADMIN' ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
-                    ADMIN
-                </a>
-                <a href="{{ route('permisos.index', ['rol' => 'ALMACEN']) }}" class="px-3 py-1 text-xs font-bold rounded-lg transition-all {{ $rolFiltro == 'ALMACEN' ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
-                    ALMACEN
-                </a>
-                <a href="{{ route('permisos.index', ['rol' => 'PROVEEDOR']) }}" class="px-3 py-1 text-xs font-bold rounded-lg transition-all {{ $rolFiltro == 'PROVEEDOR' ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
-                    PROVEEDOR
-                </a>
+                @foreach ($rolesDisponibles as $rol)
+                    <a href="{{ route('permisos.index', ['rol' => $rol]) }}" class="px-3 py-1 text-xs font-bold rounded-lg transition-all {{ $rolFiltro == $rol ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
+                        {{ $rol }}
+                    </a>
+                @endforeach
             </div>
         </div>
 
@@ -159,7 +155,7 @@
                                             Eliminar
                                         </button>
                                     @else
-                                        <form method="POST" action="{{ route('permisos.toggleEstado', $registro['id']) }}" style="display:inline;">
+                                        <form method="POST" action="{{ route('permisos.toggleEstado', ['id' => $registro['id']]) }}" style="display:inline;">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all shadow-sm active:scale-95">
@@ -216,9 +212,9 @@
                 <div class="flex flex-col gap-1.5">
                     <label class="text-sm font-bold text-slate-700">Rol</label>
                     <select name="rol" id="edit_rol" class="border border-slate-300 rounded-lg p-2.5 text-sm outline-none">
-                        <option value="ADMIN">ADMIN</option>
-                        <option value="ALMACEN">ALMACEN</option>
-                        <option value="PROVEEDOR">PROVEEDOR</option>
+                        @foreach ($rolesDisponibles as $rol)
+                            <option value="{{ $rol }}">{{ $rol }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="flex flex-col gap-1.5">
@@ -311,6 +307,12 @@
         aplicarPermisosPredeterminados(rol, 'edit-grid');
     });
 
+    const createGridHasChecked = () => document.querySelectorAll('#create-grid input[type="checkbox"]:checked').length > 0;
+
+    if (!createGridHasChecked()) {
+        aplicarPermisosPredeterminados(document.getElementById('rol').value, 'create-grid');
+    }
+
     // Función principal para marcar/desmarcar todo por contenedor
     function bulkCheck(containerId, status) {
         const container = document.getElementById(containerId);
@@ -322,22 +324,26 @@
     document.querySelectorAll('.edit-user-btn').forEach(button => {
         button.addEventListener('click', function() {
             const id = this.dataset.id;
-            editForm.action = `/permisos/usuarios/${id}`;
+            editForm.action = `{{ route('permisos.usuarios.update', ['id' => '__ID__']) }}`.replace('__ID__', id);
             
             document.getElementById('edit_nombre').value = this.dataset.nombre;
             document.getElementById('edit_email').value = this.dataset.email;
             document.getElementById('edit_rol').value = this.dataset.rol;
             
-            const permisos = JSON.parse(this.dataset.permisos);
+            const permisos = JSON.parse(this.dataset.permisos || '[]');
             document.querySelectorAll('.check-ver, .check-editar').forEach(cb => cb.checked = false);
-            
-            permisos.forEach(p => {
-                const moduloStr = p.modulo;
-                const verCheck = document.querySelector(`#edit-grid .check-ver[value="${moduloStr}"]`);
-                const editCheck = document.querySelector(`#edit-grid .check-editar[value="${moduloStr}"]`);
-                if(verCheck) verCheck.checked = true;
-                if(editCheck && p.puede_editar) editCheck.checked = true;
-            });
+
+            if (permisos.length === 0) {
+                aplicarPermisosPredeterminados(this.dataset.rol, 'edit-grid');
+            } else {
+                permisos.forEach(p => {
+                    const moduloStr = p.modulo;
+                    const verCheck = document.querySelector(`#edit-grid .check-ver[value="${moduloStr}"]`);
+                    const editCheck = document.querySelector(`#edit-grid .check-editar[value="${moduloStr}"]`);
+                    if(verCheck) verCheck.checked = true;
+                    if(editCheck && p.puede_editar) editCheck.checked = true;
+                });
+            }
 
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -352,7 +358,7 @@
             const userRow = this.closest('tr');
             
             document.getElementById('deleteUserName').textContent = nombre;
-            deleteForm.action = `/permisos/usuarios/${id}`;
+            deleteForm.action = `{{ route('permisos.usuarios.destroy', ['id' => '__ID__']) }}`.replace('__ID__', id);
             deleteForm.dataset.userId = id;
             deleteForm.dataset.userRowId = userRow?.getAttribute('data-user-id') || id;
             

@@ -2,231 +2,241 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CategoriaProducto;
-use App\Models\Estado;
+use App\Models\InventarioProductoTerminado;
 use App\Models\OrdenProduccion;
-use App\Models\PasoTrazabilidad;
-use App\Models\ProductoLote;
 use App\Models\ProductoTerminado;
-use App\Models\UnidadMedida;
+use App\Models\UbicacionAlmacen;
+use App\Services\IdentificacionProductoService;
+use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TerminadoController extends Controller
 {
-    public function index(): View|RedirectResponse
+    public function index(Request $request): View
     {
-        if (! $this->canViewModule('Terminados')) {
-            return redirect()->route('dashboard')->with('error', 'No tienes permisos para ver terminados.');
-        }
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Terminados'), 403);
 
-        $canManage = $this->canManageTerminados();
+        $ubicacionFiltro = $request->integer('ubicacion_almacen_id');
 
-        $categorias = CategoriaProducto::orderBy('nombre')->get(['id', 'nombre']);
-        $unidades = UnidadMedida::orderBy('nombre')->get(['id', 'nombre']);
-
-        $productos = ProductoTerminado::with(['categoria:id,nombre', 'unidad:id,nombre'])
-            ->orderBy('nombre')
+        $inventario = InventarioProductoTerminado::query()
+            ->with([
+                'tipoProducto:id,nombre,slug,stock_minimo_terminado',
+                'unidadMedida:id,nombre',
+                'ubicacionAlmacen:id,nombre,codigo_ubicacion',
+                'productoTerminado:id,numero_lote_produccion,numero_serie,codigo_barras,codigo_qr',
+            ])
+            ->when($ubicacionFiltro > 0, fn ($query) => $query->where('ubicacion_almacen_id', $ubicacionFiltro))
+            ->orderByDesc('updated_at')
+            ->limit(200)
             ->get();
 
-        $ordenesFinalizadas = OrdenProduccion::with(['producto:id,nombre,sku', 'estado:id,nombre'])
-            ->whereHas('estado', function ($query) {
-                $query->whereRaw('UPPER(nombre) = ?', ['FINALIZADA']);
-            })
-            ->orderByDesc('id')
-            ->get();
+        $productos = $inventario->map(function (InventarioProductoTerminado $item): object {
+            $stock = (float) $item->cantidad_en_almacen;
+            $stockMinimo = (float) ($item->tipoProducto?->stock_minimo_terminado ?? 5);
+            $stockMaximo = max($stock * 1.5, 1.0);
 
-        $lotes = ProductoLote::with([
-            'producto:id,nombre,sku,unidad_id',
-            'producto.unidad:id,nombre',
-            'estado:id,nombre',
-            'pasos.usuario:id,nombre',
-        ])->orderByDesc('id')->limit(30)->get();
+            return (object) [
+                'id' => $item->id,
+                'nombre' => $item->tipoProducto?->nombre ?? 'Producto terminado',
+                'sku' => $item->tipoProducto?->slug ?? ('TERM-' . $item->id),
+                'stock' => $stock,
+                'stock_minimo' => $stockMinimo,
+                'stock_maximo' => $stockMaximo,
+                'categoria' => (object) ['nombre' => 'Terminados'],
+                'unidad' => (object) ['nombre' => $item->unidadMedida?->nombre ?? 'Unidad'],
+                'ubicacion' => (object) [
+                    'nombre' => $item->ubicacionAlmacen?->nombre,
+                    'codigo' => $item->ubicacionAlmacen?->codigo_ubicacion,
+                ],
+                'numero_lote_produccion' => $item->productoTerminado?->numero_lote_produccion,
+                'numero_serie' => $item->productoTerminado?->numero_serie,
+                'codigo_barras' => $item->productoTerminado?->codigo_barras,
+                'codigo_qr' => $item->productoTerminado?->codigo_qr,
+            ];
+        });
 
-        return view('terminados.index', [
-            'canManage' => $canManage,
-            'categorias' => $categorias,
-            'unidades' => $unidades,
-            'productos' => $productos,
-            'ordenesFinalizadas' => $ordenesFinalizadas,
-            'lotes' => $lotes,
-            'statsTotalProductos' => (int) $productos->count(),
-            'statsStockBajo' => (int) $productos->filter(function ($producto) {
-                return (float) $producto->stock <= (float) $producto->stock_minimo;
-            })->count(),
-            'statsLotes' => (int) ProductoLote::count(),
-        ]);
+        $statsTotalProductos = $productos->count();
+        $statsStockBajo = $productos->filter(fn (object $p): bool => $p->stock <= $p->stock_minimo)->count();
+        $statsLotes = $inventario->count();
+
+        $ordenesFinalizadas = $this->obtenerOrdenesFinalizadas();
+        $ubicaciones = UbicacionAlmacen::query()->where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'codigo_ubicacion']);
+
+        return view('terminados.index', compact(
+            'statsTotalProductos',
+            'statsStockBajo',
+            'statsLotes',
+            'ordenesFinalizadas',
+            'productos',
+            'ubicaciones',
+            'ubicacionFiltro'
+        ));
     }
 
-    public function storeProducto(Request $request): RedirectResponse
+    public function storeIngreso(Request $request): RedirectResponse
     {
-        if (! $this->canManageTerminados()) {
-            return redirect()->route('terminados.index')->with('error', 'No tienes permisos para crear productos.');
-        }
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Terminados', 'editar'), 403);
 
         $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:150'],
-            'sku' => ['required', 'string', 'max:80', Rule::unique('producto_terminado', 'sku')],
-            'categoria_id' => ['required', 'integer', 'exists:categoria_producto,id'],
-            'unidad_id' => ['required', 'integer', 'exists:unidad_medida,id'],
-            'stock' => ['nullable', 'numeric', 'min:0'],
-            'stock_minimo' => ['required', 'numeric', 'min:0'],
-            'stock_maximo' => ['required', 'numeric', 'gte:stock_minimo'],
-            'precio_venta' => ['required', 'numeric', 'min:0'],
-        ]);
-
-        $estadoActivo = Estado::firstOrCreate([
-            'nombre' => 'Activo',
-            'tipo' => 'producto',
-        ]);
-
-        ProductoTerminado::create([
-            'nombre' => $data['nombre'],
-            'sku' => $data['sku'],
-            'categoria_id' => (int) $data['categoria_id'],
-            'unidad_id' => (int) $data['unidad_id'],
-            'stock' => (float) ($data['stock'] ?? 0),
-            'stock_minimo' => (float) $data['stock_minimo'],
-            'stock_maximo' => (float) $data['stock_maximo'],
-            'precio_venta' => (float) $data['precio_venta'],
-            'estado_id' => $estadoActivo->id,
-        ]);
-
-        return redirect()->route('terminados.index')->with('ok', 'Producto terminado creado correctamente.');
-    }
-
-    public function registrarIngreso(Request $request): RedirectResponse
-    {
-        if (! $this->canManageTerminados()) {
-            return redirect()->route('terminados.index')->with('error', 'No tienes permisos para registrar ingresos de terminados.');
-        }
-
-        $data = $request->validate([
-            'orden_produccion_id' => ['required', 'integer', 'exists:orden_produccion,id'],
+            'orden_produccion_id' => ['required', 'integer', 'exists:ordenes_produccion,id'],
             'cantidad_ingreso' => ['required', 'numeric', 'gt:0'],
+            'ubicacion_almacen_id' => ['nullable', 'integer', 'exists:ubicaciones_almacen,id'],
         ]);
 
-        DB::transaction(function () use ($data, $request): void {
-            $orden = OrdenProduccion::with(['estado:id,nombre'])->lockForUpdate()->findOrFail((int) $data['orden_produccion_id']);
-            $producto = ProductoTerminado::lockForUpdate()->findOrFail((int) $orden->producto_id);
+        $orden = OrdenProduccion::query()
+            ->with(['tipoProducto:id,nombre', 'unidadMedida:id'])
+            ->findOrFail((int) $data['orden_produccion_id']);
 
-            if (strtoupper((string) ($orden->estado->nombre ?? '')) !== 'FINALIZADA') {
-                throw ValidationException::withMessages([
-                    'orden_produccion_id' => 'Solo se permite ingreso desde ordenes FINALIZADAS.',
-                ]);
-            }
+        $ubicacion = UbicacionAlmacen::query()
+            ->when(
+                ! empty($data['ubicacion_almacen_id']),
+                fn ($query) => $query->where('id', (int) $data['ubicacion_almacen_id']),
+                fn ($query) => $query->where('activo', true)->orderBy('id')
+            )
+            ->first();
 
-            $cantidadCompleta = (float) $orden->cantidad_completada;
-            $cantidadIngresada = (float) ($orden->cantidad_ingresada ?? 0);
-            $cantidadPendiente = max($cantidadCompleta - $cantidadIngresada, 0);
+        if (! $ubicacion) {
+            return back()->withErrors(['orden_produccion_id' => 'No existe una ubicacion de almacen activa para registrar ingresos.']);
+        }
+
+        if (! $orden->tipo_producto_id || ! $orden->unidad_medida_id || ! $orden->user_id) {
+            return back()->withErrors(['orden_produccion_id' => 'La orden seleccionada no tiene datos minimos para generar producto terminado.']);
+        }
+
+        DB::transaction(function () use ($orden, $ubicacion, $data): void {
             $cantidadIngreso = (float) $data['cantidad_ingreso'];
+            $lote = $this->generarLoteUnico($orden->id);
+            $numeroSerie = IdentificacionProductoService::generarNumeroSerie((int) $orden->id, (int) $orden->tipo_producto_id);
+            $codigoBarras = IdentificacionProductoService::generarCodigoBarras((int) $orden->id, (int) $orden->tipo_producto_id);
+            $codigoQr = IdentificacionProductoService::generarCodigoQr($lote, $numeroSerie);
 
-            if ($cantidadPendiente <= 0) {
-                throw ValidationException::withMessages([
-                    'cantidad_ingreso' => 'Esta orden ya fue ingresada completamente a stock.',
-                ]);
-            }
-
-            if ($cantidadIngreso > $cantidadPendiente) {
-                throw ValidationException::withMessages([
-                    'cantidad_ingreso' => 'La cantidad excede el pendiente por ingresar de la orden.',
-                ]);
-            }
-
-            $producto->stock = (float) $producto->stock + $cantidadIngreso;
-            $producto->save();
-
-            $orden->cantidad_ingresada = $cantidadIngresada + $cantidadIngreso;
-            $orden->save();
-
-            $estadoLote = Estado::firstOrCreate([
-                'nombre' => 'DISPONIBLE',
-                'tipo' => 'lote',
-            ]);
-
-            $lote = ProductoLote::create([
-                'producto_id' => $producto->id,
-                'numero_lote' => 'OP'.$orden->id.'-'.now()->format('YmdHis'),
+            $productoTerminado = ProductoTerminado::query()->create([
+                'numero_lote_produccion' => $lote,
+                'numero_serie' => $numeroSerie,
+                'orden_produccion_id' => $orden->id,
+                'tipo_producto_id' => $orden->tipo_producto_id,
+                'user_responsable_id' => $orden->user_id,
                 'fecha_produccion' => now(),
-                'estado_id' => $estadoLote->id,
+                'fecha_finalizacion' => now(),
+                'cantidad_producida' => $cantidadIngreso,
+                'unidad_medida_id' => $orden->unidad_medida_id,
+                'estado' => 'Producido',
+                'estado_calidad' => 'Pendiente Inspeccion',
+                'costo_produccion' => (float) ($orden->costo_real ?? $orden->costo_estimado ?? 0),
+                'codigo_barras' => $codigoBarras,
+                'codigo_qr' => $codigoQr,
+                'notas' => sprintf(
+                    'Ingreso registrado desde modulo de terminados. SKU %s',
+                    IdentificacionProductoService::generarSkuVisual($orden)
+                ),
             ]);
 
-            PasoTrazabilidad::create([
-                'lote_id' => $lote->id,
-                'etapa' => 'INGRESO_TERMINADO',
-                'descripcion' => 'Ingreso desde orden #'.$orden->id.' por cantidad '.number_format($cantidadIngreso, 2, '.', ''),
-                'fecha' => now(),
-                'usuario_id' => (int) $request->session()->get('auth_user_id'),
+            $precioUnitario = 0.0;
+            if ($cantidadIngreso > 0 && (float) ($orden->costo_real ?? 0) > 0) {
+                $precioUnitario = round(((float) $orden->costo_real) / $cantidadIngreso, 4);
+            }
+
+            InventarioProductoTerminado::query()->create([
+                'producto_terminado_id' => $productoTerminado->id,
+                'tipo_producto_id' => $orden->tipo_producto_id,
+                'ubicacion_almacen_id' => $ubicacion->id,
+                'cantidad_en_almacen' => $cantidadIngreso,
+                'unidad_medida_id' => $orden->unidad_medida_id,
+                'cantidad_reservada' => 0,
+                'fecha_ingreso_almacen' => now()->toDateString(),
+                'estado' => 'En Almacén',
+                'precio_unitario' => $precioUnitario,
+                'valor_total_inventario' => round($cantidadIngreso * $precioUnitario, 4),
+                'notas' => sprintf(
+                    'Ingreso inicial generado desde orden #%d. Lote %s',
+                    $orden->id,
+                    $lote
+                ),
+                'requiere_inspeccion_periodica' => false,
             ]);
         });
 
-        return redirect()->route('terminados.index')->with('ok', 'Ingreso a stock de terminados registrado.');
+        return redirect()->route('terminados.index')->with('ok', 'Ingreso de producto terminado registrado correctamente.');
     }
 
-    public function ajustarStock(Request $request): RedirectResponse
+    public function storeAjuste(Request $request): RedirectResponse
     {
-        if (! $this->canManageTerminados()) {
-            return redirect()->route('terminados.index')->with('error', 'No tienes permisos para ajustar stock de terminados.');
-        }
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Terminados', 'editar'), 403);
 
         $data = $request->validate([
-            'producto_id' => ['required', 'integer', 'exists:producto_terminado,id'],
+            'producto_id' => ['required', 'integer', 'exists:inventario_productos_terminados,id'],
             'tipo_ajuste' => ['required', 'in:SUMAR,RESTAR'],
             'cantidad' => ['required', 'numeric', 'gt:0'],
-            'motivo' => ['required', 'string', 'max:255'],
+            'motivo' => ['required', 'string', 'max:500'],
         ]);
 
-        DB::transaction(function () use ($data, $request): void {
-            $producto = ProductoTerminado::lockForUpdate()->findOrFail((int) $data['producto_id']);
+        $inventario = InventarioProductoTerminado::query()->findOrFail((int) $data['producto_id']);
+        $cantidadActual = (float) $inventario->cantidad_en_almacen;
+        $cantidadAjuste = (float) $data['cantidad'];
 
-            $cantidad = (float) $data['cantidad'];
-            $nuevoStock = (float) $producto->stock;
-            if ($data['tipo_ajuste'] === 'SUMAR') {
-                $nuevoStock += $cantidad;
-            } else {
-                $nuevoStock -= $cantidad;
-            }
+        if ($data['tipo_ajuste'] === 'RESTAR' && $cantidadAjuste > $cantidadActual) {
+            return back()->withErrors(['cantidad' => 'No se puede restar una cantidad mayor al stock actual.']);
+        }
 
-            if ($nuevoStock < 0) {
-                throw ValidationException::withMessages([
-                    'cantidad' => 'El ajuste deja stock negativo, revisa la cantidad.',
-                ]);
-            }
+        $nuevoStock = $data['tipo_ajuste'] === 'SUMAR'
+            ? $cantidadActual + $cantidadAjuste
+            : $cantidadActual - $cantidadAjuste;
 
-            $producto->stock = $nuevoStock;
-            $producto->save();
+        $notaAjuste = sprintf(
+            "[%s] Ajuste %s de %.4f. Motivo: %s",
+            now()->format('Y-m-d H:i'),
+            $data['tipo_ajuste'],
+            $cantidadAjuste,
+            trim((string) $data['motivo'])
+        );
 
-            $estadoAjuste = Estado::firstOrCreate([
-                'nombre' => 'AJUSTE',
-                'tipo' => 'lote',
-            ]);
+        $inventario->cantidad_en_almacen = $nuevoStock;
+        $inventario->estado = $nuevoStock > 0 ? 'En Almacén' : 'Descartado';
+        $inventario->notas = trim((string) $inventario->notas . "\n" . $notaAjuste);
+        $inventario->save();
+        $inventario->actualizarValor();
 
-            $lote = ProductoLote::create([
-                'producto_id' => $producto->id,
-                'numero_lote' => 'AJ'.$producto->id.'-'.now()->format('YmdHis'),
-                'fecha_produccion' => now(),
-                'estado_id' => $estadoAjuste->id,
-            ]);
-
-            $signo = $data['tipo_ajuste'] === 'SUMAR' ? '+' : '-';
-            PasoTrazabilidad::create([
-                'lote_id' => $lote->id,
-                'etapa' => 'AJUSTE_STOCK',
-                'descripcion' => 'Ajuste '.$signo.number_format($cantidad, 2, '.', '').'. Motivo: '.$data['motivo'],
-                'fecha' => now(),
-                'usuario_id' => (int) $request->session()->get('auth_user_id'),
-            ]);
-        });
-
-        return redirect()->route('terminados.index')->with('ok', 'Ajuste de stock aplicado y auditado.');
+        return redirect()->route('terminados.index')->with('ok', 'Ajuste de inventario aplicado correctamente.');
     }
 
-    private function canManageTerminados(): bool
+    /**
+     * @return Collection<int, object>
+     */
+    private function obtenerOrdenesFinalizadas(): Collection
     {
-        return $this->canEditModule('Terminados');
+        return OrdenProduccion::query()
+            ->with(['tipoProducto:id,nombre'])
+            ->whereIn('estado', OrdenProduccion::ESTADOS_FINALIZADAS)
+            ->orderByDesc('updated_at')
+            ->limit(100)
+            ->get()
+            ->map(function (OrdenProduccion $orden): object {
+                $cantidadCompletada = (float) ($orden->cantidad_produccion ?? 0);
+
+                return (object) [
+                    'id' => $orden->id,
+                    'cantidad_completada' => $cantidadCompletada,
+                    'cantidad_ingresada' => 0.0,
+                    'producto' => (object) [
+                        'nombre' => $orden->tipoProducto?->nombre ?? 'Producto',
+                    ],
+                ];
+            });
+    }
+
+    private function generarLoteUnico(int $ordenId): string
+    {
+        do {
+            $codigo = sprintf('LOTE-%s-%04d', now()->format('Ymd'), random_int(1, 9999));
+            if ($ordenId > 0) {
+                $codigo = sprintf('OP%s-%s', $ordenId, $codigo);
+            }
+        } while (ProductoTerminado::query()->where('numero_lote_produccion', $codigo)->exists());
+
+        return $codigo;
     }
 }

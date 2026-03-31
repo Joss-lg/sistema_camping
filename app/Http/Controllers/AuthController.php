@@ -2,21 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Usuario;
+use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class AuthController extends Controller
 {
-    public function showLogin(Request $request): View|RedirectResponse
+    public function showLogin(): View
     {
-        if ($request->session()->has('auth_user_id')) {
-            return redirect()->route('dashboard');
-        }
-
         return view('auth.login');
+    }
+
+    public function showRegister(): RedirectResponse
+    {
+        return redirect()->route('login')
+            ->with('ok', 'Registro publico deshabilitado. Solicita alta al administrador.');
     }
 
     public function login(Request $request): RedirectResponse
@@ -26,41 +28,24 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $usuario = Usuario::where('email', $credentials['email'])->first();
+        if (Auth::attempt($credentials)) {
+            $request->session()->regenerate();
 
-        if (! $usuario) {
-            return back()->withErrors([
-                'email' => 'Credenciales invalidas.',
-            ])->onlyInput('email');
+            return redirect()->route(PermisoService::resolveLandingRoute(Auth::user()));
         }
 
-        $passwordMatches = Hash::check($credentials['password'], (string) $usuario->password)
-            || hash_equals((string) $usuario->password, $credentials['password']);
-
-        if (! $passwordMatches) {
-            return back()->withErrors([
-                'email' => 'Credenciales invalidas.',
-            ])->onlyInput('email');
-        }
-
-        $request->session()->put('auth_user_id', $usuario->id);
-        $request->session()->put('auth_user_nombre', $usuario->nombre);
-        $request->session()->put('auth_user_rol', $usuario->rol);
-
-        return redirect()->route('dashboard');
+        return back()->withInput()->withErrors([
+            'email' => 'Credenciales invalidas.',
+        ]);
     }
 
     public function logout(Request $request): RedirectResponse
     {
-        $request->session()->forget([
-            'auth_user_id',
-            'auth_user_nombre',
-            'auth_user_rol',
-        ]);
+        Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->route('bienvenida');
     }
 }

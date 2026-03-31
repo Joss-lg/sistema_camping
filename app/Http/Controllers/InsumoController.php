@@ -2,108 +2,166 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CategoriaMaterial;
-use App\Models\Material;
+use App\Http\Requests\StoreInsumoRequest;
+use App\Http\Requests\UpdateInsumoRequest;
+use App\Models\CategoriaInsumo;
+use App\Models\Insumo;
 use App\Models\Proveedor;
+use App\Models\TipoProducto;
+use App\Models\UbicacionAlmacen;
 use App\Models\UnidadMedida;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class InsumoController extends Controller
 {
-    public function index(Request $request): View|RedirectResponse
-    {
-        if (! $this->canViewModule('Insumos')) {
-            return redirect()->route('dashboard')->with('error', 'No tienes permisos para ver insumos.');
-        }
+	public function index(Request $request): View
+	{
+		$this->authorize('viewAny', Insumo::class);
 
-        $query = trim((string) $request->query('q', ''));
-        $proveedorId = (int) $request->query('proveedor_id', 0);
-        $categoriaId = (int) $request->query('categoria_id', 0);
-        $estadoStock = (string) $request->query('estado_stock', '');
+		$query = Insumo::query()
+			->with(['categoriaInsumo', 'unidadMedida', 'tipoProducto', 'proveedor', 'ubicacionAlmacen'])
+			->orderBy('nombre');
 
-        $materialesQuery = Material::with(['categoria', 'unidad', 'proveedor'])
-            ->when($query !== '', function ($builder) use ($query) {
-                $builder->where('nombre', 'like', "%{$query}%");
-            })
-            ->when($proveedorId > 0, function ($builder) use ($proveedorId) {
-                $builder->where('proveedor_id', $proveedorId);
-            })
-            ->when($categoriaId > 0, function ($builder) use ($categoriaId) {
-                $builder->where('categoria_id', $categoriaId);
-            })
-            ->when($estadoStock === 'bajo', function ($builder) {
-                $builder->whereColumn('stock', '<=', 'stock_minimo');
-            })
-            ->when($estadoStock === 'ok', function ($builder) {
-                $builder->whereColumn('stock', '>', 'stock_minimo');
-            })
-            ->orderByDesc('id');
+		if ($request->filled('q')) {
+			$search = (string) $request->query('q');
+			$query->where(function ($subQuery) use ($search) {
+				$subQuery->where('codigo_insumo', 'like', '%' . $search . '%')
+					->orWhere('nombre', 'like', '%' . $search . '%');
+			});
+		}
 
-        $materiales = $materialesQuery->paginate(12)->withQueryString();
-        $canManage = in_array(strtoupper((string) session('auth_user_rol', '')), ['ADMIN', 'ALMACEN'], true);
+		if ($request->filled('categoria_insumo_id')) {
+			$query->where('categoria_insumo_id', $request->query('categoria_insumo_id'));
+		}
 
-        return view('insumos.index', [
-            'materiales' => $materiales,
-            'proveedores' => Proveedor::orderBy('nombre')->get(['id', 'nombre']),
-            'categorias' => CategoriaMaterial::orderBy('nombre')->get(['id', 'nombre']),
-            'unidades' => UnidadMedida::orderBy('nombre')->get(['id', 'nombre']),
-            'statsTotal' => (int) Material::count(),
-            'statsBajoMinimo' => (int) Material::whereColumn('stock', '<=', 'stock_minimo')->count(),
-            'statsSinStock' => (int) Material::where('stock', '<=', 0)->count(),
-            'canManage' => $canManage,
-            'q' => $query,
-            'selectedProveedor' => $proveedorId,
-            'selectedCategoria' => $categoriaId,
-            'selectedEstadoStock' => $estadoStock,
-        ]);
-    }
+		if ($request->filled('proveedor_id')) {
+			$query->where('proveedor_id', $request->query('proveedor_id'));
+		}
 
-    public function store(Request $request): RedirectResponse
-    {
-        if (! $this->canManageInsumos()) {
-            return redirect()->route('insumos.index')->with('error', 'No tienes permisos para crear insumos.');
-        }
+		if ($request->filled('estado')) {
+			$query->where('estado', $request->query('estado'));
+		}
 
-        $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:150'],
-            'categoria_id' => ['required', 'integer', 'exists:categoria_material,id'],
-            'unidad_id' => ['required', 'integer', 'exists:unidad_medida,id'],
-            'proveedor_id' => ['nullable', 'integer', 'exists:proveedor,id'],
-            'stock' => ['required', 'numeric', 'min:0'],
-            'stock_minimo' => ['required', 'numeric', 'min:0'],
-            'stock_maximo' => ['required', 'numeric', 'gte:stock_minimo'],
-        ]);
+		$insumos = $query->paginate(15)->withQueryString();
+		$categorias = CategoriaInsumo::query()->orderBy('nombre')->get();
+		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
 
-        Material::create($data);
+		return view('insumos.index', compact('insumos', 'categorias', 'proveedores'));
+	}
 
-        return redirect()->route('insumos.index')->with('ok', 'Insumo creado correctamente.');
-    }
+	public function create(): View
+	{
+		$this->authorize('create', Insumo::class);
 
-    public function update(Request $request, Material $material): RedirectResponse
-    {
-        if (! $this->canManageInsumos()) {
-            return redirect()->route('insumos.index')->with('error', 'No tienes permisos para editar insumos.');
-        }
+		$categorias = CategoriaInsumo::query()->orderBy('nombre')->get();
+		$unidades = UnidadMedida::query()->where('activo', true)->orderBy('nombre')->get();
+		$tiposProducto = TipoProducto::query()->where('activo', true)->orderBy('nombre')->get();
+		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
+		$ubicaciones = UbicacionAlmacen::query()->where('activo', true)->orderBy('codigo_ubicacion')->get();
 
-        $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:150'],
-            'categoria_id' => ['required', 'integer', 'exists:categoria_material,id'],
-            'unidad_id' => ['required', 'integer', 'exists:unidad_medida,id'],
-            'proveedor_id' => ['nullable', 'integer', 'exists:proveedor,id'],
-            'stock' => ['required', 'numeric', 'min:0'],
-            'stock_minimo' => ['required', 'numeric', 'min:0'],
-            'stock_maximo' => ['required', 'numeric', 'gte:stock_minimo'],
-        ]);
+		return view('insumos.create', compact('categorias', 'unidades', 'tiposProducto', 'proveedores', 'ubicaciones'));
+	}
 
-        $material->update($data);
+	public function store(StoreInsumoRequest $request): RedirectResponse
+	{
+		$this->authorize('create', Insumo::class);
 
-        return redirect()->route('insumos.index')->with('ok', 'Insumo actualizado correctamente.');
-    }
+		DB::beginTransaction();
 
-    private function canManageInsumos(): bool
-    {
-        return $this->canEditModule('Insumos');
-    }
+		try {
+			Insumo::create($request->validated());
+
+			DB::commit();
+
+			return redirect()->route('insumos.index')->with('success', 'Insumo creado correctamente.');
+		} catch (\Exception $e) {
+			DB::rollBack();
+
+			return back()->withInput()->with('error', 'Error al procesar: ' . $e->getMessage());
+		}
+	}
+
+	public function show(Insumo $insumo): View
+	{
+		$this->authorize('view', $insumo);
+
+		$insumo->load([
+			'categoriaInsumo',
+			'unidadMedida',
+			'tipoProducto',
+			'proveedor',
+			'ubicacionAlmacen',
+			'lotesInsumos',
+			'movimientosInventario',
+		]);
+
+		return view('insumos.show', compact('insumo'));
+	}
+
+	public function edit(Insumo $insumo): View
+	{
+		$this->authorize('update', $insumo);
+
+		$categorias = CategoriaInsumo::query()->orderBy('nombre')->get();
+		$unidades = UnidadMedida::query()->where('activo', true)->orderBy('nombre')->get();
+		$tiposProducto = TipoProducto::query()->where('activo', true)->orderBy('nombre')->get();
+		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
+		$ubicaciones = UbicacionAlmacen::query()->where('activo', true)->orderBy('codigo_ubicacion')->get();
+
+		return view('insumos.edit', compact('insumo', 'categorias', 'unidades', 'tiposProducto', 'proveedores', 'ubicaciones'));
+	}
+
+	public function update(UpdateInsumoRequest $request, Insumo $insumo): RedirectResponse
+	{
+		$this->authorize('update', $insumo);
+
+		DB::beginTransaction();
+
+		try {
+			$insumo->update($request->validated());
+
+			DB::commit();
+
+			return redirect()->route('insumos.index')->with('success', 'Insumo actualizado correctamente.');
+		} catch (\Exception $e) {
+			DB::rollBack();
+
+			return back()->withInput()->with('error', 'Error al procesar: ' . $e->getMessage());
+		}
+	}
+
+	public function destroy(Insumo $insumo): RedirectResponse
+	{
+		$this->authorize('delete', $insumo);
+
+		DB::beginTransaction();
+
+		try {
+			$insumo->delete();
+
+			DB::commit();
+
+			return redirect()->route('insumos.index')->with('success', 'Insumo eliminado correctamente.');
+		} catch (\Exception $e) {
+			DB::rollBack();
+
+			return back()->with('error', 'Error al procesar: ' . $e->getMessage());
+		}
+	}
+
+	public function bajoStock(): View
+	{
+		$this->authorize('viewAny', Insumo::class);
+
+		$insumos = Insumo::query()
+			->with(['categoriaInsumo', 'unidadMedida', 'proveedor'])
+			->bajoStock()
+			->orderByRaw('(stock_actual - stock_minimo) asc')
+			->paginate(15);
+
+		return view('insumos.bajo_stock', compact('insumos'));
+	}
 }

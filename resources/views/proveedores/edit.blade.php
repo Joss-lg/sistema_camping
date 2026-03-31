@@ -84,6 +84,31 @@
                     <textarea id="direccion" name="direccion" rows="3" 
                         class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none">{{ old('direccion', $proveedor->direccion) }}</textarea>
                 </div>
+
+                <div class="flex flex-col gap-2">
+                    <label for="tiempo_entrega_dias" class="text-xs font-bold text-slate-700 uppercase ml-1">Tiempo de Entrega (días)</label>
+                    <input id="tiempo_entrega_dias" name="tiempo_entrega_dias" type="number" min="1" max="120" value="{{ old('tiempo_entrega_dias', $proveedor->tiempo_entrega_dias) }}"
+                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all">
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label for="dias_credito" class="text-xs font-bold text-slate-700 uppercase ml-1">Crédito (días)</label>
+                    <input id="dias_credito" name="dias_credito" type="number" min="0" max="365" value="{{ old('dias_credito', $proveedor->dias_credito) }}"
+                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all">
+                </div>
+
+                <div class="flex flex-col gap-2 md:col-span-2">
+                    <label for="condiciones_pago" class="text-xs font-bold text-slate-700 uppercase ml-1">Condiciones de Pago</label>
+                    <input id="condiciones_pago" name="condiciones_pago" type="text" value="{{ old('condiciones_pago', $proveedor->condiciones_pago) }}"
+                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                        placeholder="Ej: Transferencia 50/50, neto 30 días">
+                </div>
+
+                <div class="flex flex-col gap-2 md:col-span-2">
+                    <label for="calificacion" class="text-xs font-bold text-slate-700 uppercase ml-1">Calificación de Calidad (0 a 5)</label>
+                    <input id="calificacion" name="calificacion" type="number" min="0" max="5" step="0.1" value="{{ old('calificacion', $proveedor->calificacion) }}"
+                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all">
+                </div>
             </div>
 
             {{-- Botones de Acción --}}

@@ -2,52 +2,48 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DashboardFlowTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     public function test_authenticated_user_can_view_dashboard_operativo(): void
     {
-        if (! Schema::hasTable('estado')
-            || ! Schema::hasTable('usuario')
-            || ! Schema::hasTable('entrega_proveedor')
-            || ! Schema::hasTable('material')
-            || ! Schema::hasTable('orden_produccion')
-            || ! Schema::hasTable('producto_lote')) {
-            $this->markTestSkipped('El entorno de pruebas no tiene el esquema de dashboard cargado.');
-        }
-
-        $estadoId = DB::table('estado')->insertGetId([
-            'nombre' => 'Activo',
-            'tipo' => 'general',
-            'created_at' => now(),
-            'updated_at' => now(),
+        $role = Role::query()->create([
+            'nombre' => 'Supervisor Dashboard',
+            'slug' => 'supervisor-dashboard',
+            'nivel_acceso' => 50,
         ]);
 
-        $usuarioId = DB::table('usuario')->insertGetId([
-            'nombre' => 'Usuario Dashboard',
+        Permission::query()->create([
+            'role_id' => $role->id,
+            'modulo' => 'Dashboard',
+            'puede_ver' => true,
+            'puede_crear' => false,
+            'puede_editar' => false,
+            'puede_eliminar' => false,
+            'puede_aprobar' => false,
+        ]);
+
+        $user = User::query()->create([
+            'name' => 'Usuario Dashboard',
             'email' => 'dashboard-user@example.test',
-            'password' => bcrypt('secret123'),
-            'rol' => 'ADMIN',
-            'estado_id' => $estadoId,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'password' => 'secret123',
+            'role_id' => $role->id,
+            'activo' => true,
+            'departamento' => 'operaciones',
         ]);
 
-        $response = $this->withSession([
-            'auth_user_id' => $usuarioId,
-            'auth_user_rol' => 'ADMIN',
-            'auth_user_nombre' => 'Usuario Dashboard',
-        ])->get(route('dashboard'));
+        $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSeeText('Dashboard Operativo');
-        $response->assertSeeText('Ordenes en proceso');
-        $response->assertSeeText('Accesos rapidos');
+        $response->assertSeeText('Dashboard');
+        $response->assertSeeText('Panel SSR operativo');
+        $response->assertSeeText('Órdenes de Producción');
     }
 }

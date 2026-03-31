@@ -4,92 +4,89 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title ?? 'LogiCamp' }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans antialiased">
+@php
+    $isFullPage = isset($hideSidebar) && $hideSidebar;
+    $authUser = auth()->user();
+    $roleKey = \App\Services\PermisoService::normalizeRoleKey((string) ($authUser?->role?->slug ?: $authUser?->role?->nombre));
+    $roleLabel = $authUser?->role?->nombre
+        ?: ($roleKey ? str_replace('_', ' ', ucwords(strtolower($roleKey), '_')) : 'Sin rol');
+    $isSuperAdmin = \App\Services\PermisoService::isSuperAdmin($authUser);
+    $isProveedor = $roleKey === 'PROVEEDOR';
+    $canAccess = static fn (string $module, string $action = 'ver'): bool => $authUser
+        ? ($isSuperAdmin || $authUser->canCustom($module, $action))
+        : false;
+@endphp
+<body class="{{ $isFullPage ? 'min-h-screen text-slate-900 font-sans antialiased' : 'bg-slate-50 text-slate-900 font-sans antialiased' }}">
 
-    <div class="min-h-screen grid grid-cols-1 lg:grid-cols-[250px_1fr]">
-        
+    <div class="{{ $isFullPage ? 'min-h-screen' : 'min-h-screen grid grid-cols-1 lg:grid-cols-[250px_1fr]' }}">
+
+        @if(! $isFullPage)
         <aside class="bg-[#0f172a] text-white p-5 lg:sticky lg:top-0 lg:h-screen overflow-y-auto flex flex-col">
-            @php
-                $sessionRole = strtoupper((string) session('auth_user_rol', ''));
-                $sessionUserId = (int) session('auth_user_id', 0);
-                $modulePermissions = $sessionUserId > 0
-                    ? \App\Models\UsuarioPermiso::where('usuario_id', $sessionUserId)->get(['modulo', 'puede_ver', 'puede_editar'])
-                    : collect();
-
-                $legacyViewAccess = function (string $modulo) use ($sessionRole): bool {
-                    if ($sessionRole === 'ADMIN') return true;
-                    if ($sessionRole === 'ALMACEN') {
-                        return in_array($modulo, ['Dashboard', 'Compras', 'Insumos', 'Produccion', 'Terminados', 'Trazabilidad', 'Reportes'], true);
-                    }
-                    if ($sessionRole === 'PROVEEDOR') return $modulo === 'Compras';
-                    return false;
-                };
-
-                $canViewModule = function (string $modulo) use ($modulePermissions, $legacyViewAccess): bool {
-                    if ($modulePermissions->isEmpty()) return $legacyViewAccess($modulo);
-                    $permission = $modulePermissions->firstWhere('modulo', $modulo);
-                    return $permission ? ((bool) $permission->puede_ver || (bool) $permission->puede_editar) : false;
-                };
-            @endphp
 
             <div class="text-xl font-bold mb-5 tracking-tight">LogiCamp</div>
 
             <nav class="flex-grow grid grid-cols-2 gap-1.5 lg:block lg:space-y-1.5">
+                @if ($isProveedor)
                 <div class="col-span-2 mt-2 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest lg:mt-4">
-                    Inicio
+                    📦 Portal de Proveedor
                 </div>
-                @if ($canViewModule('Dashboard'))
-                    <a href="{{ route('dashboard') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('dashboard') ? 'bg-green-600/20 text-white' : '' }}">Dashboard</a>
+                @if ($canAccess('Entregas'))
+                <a href="{{ route('entregas.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('entregas.*') ? 'bg-green-600/20 text-white' : '' }}">📦 Mis entregas</a>
+                @endif
+                @else
+                <div class="col-span-2 mt-2 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest lg:mt-4">
+                    🏠 Operaciones (El día a día)
+                </div>
+                @if ($canAccess('Dashboard'))
+                <a href="{{ route('dashboard') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('dashboard') ? 'bg-green-600/20 text-white' : '' }}">📊 Dashboard</a>
+                @endif
+                @if ($canAccess('Produccion'))
+                <a href="{{ route('ordenes-produccion.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('ordenes-produccion.*') ? 'bg-green-600/20 text-white' : '' }}">🏭 Órdenes de Producción</a>
+                <a href="{{ route('produccion.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ (request()->routeIs('produccion.index') || request()->routeIs('produccion') ) ? 'bg-green-600/20 text-white' : '' }}">⚙️ Producción</a>
+                <a href="{{ route('produccion.bom.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('produccion.bom.*') ? 'bg-green-600/20 text-white' : '' }}">📖 Recetas y BOM</a>
+                @endif
+                @if ($canAccess('Trazabilidad'))
+                <a href="{{ route('trazabilidad.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('trazabilidad.*') ? 'bg-green-600/20 text-white' : '' }}">📈 Trazabilidad</a>
+                @endif
+                @if ($canAccess('Insumos'))
+                <a href="{{ route('insumos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('insumos.*') ? 'bg-green-600/20 text-white' : '' }}">🔧 Insumos</a>
+                @endif
+                @if ($canAccess('Entregas'))
+                <a href="{{ route('entregas.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('entregas.*') ? 'bg-green-600/20 text-white' : '' }}">📦 Entregas</a>
+                @endif
+                @if ($canAccess('Terminados'))
+                <a href="{{ route('terminados.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('terminados.*') ? 'bg-green-600/20 text-white' : '' }}">✅ Terminados</a>
                 @endif
 
+                @if ($canAccess('Compras') || $canAccess('Proveedores') || $canAccess('Permisos'))
                 <div class="col-span-2 mt-4 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest">
-                    Ruta principal
+                    📋 Planeación y Configuración
                 </div>
-                @if ($canViewModule('Produccion'))
-                    <a href="{{ route('produccion.bom.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('produccion.bom.*') ? 'bg-green-600/20 text-white' : '' }}">Órdenes y recetas</a>
-                    <a href="{{ route('produccion.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('produccion.index') ? 'bg-green-600/20 text-white' : '' }}">Producción</a>
                 @endif
-                @if ($canViewModule('Trazabilidad'))
-                    <a href="{{ route('trazabilidad.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('trazabilidad.*') ? 'bg-green-600/20 text-white' : '' }}">Trazabilidad</a>
+                @if ($canAccess('Compras'))
+                <a href="{{ route('ordenes-compra.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('ordenes-compra.*') ? 'bg-green-600/20 text-white' : '' }}">🛍️ Compras</a>
                 @endif
-                @if ($canViewModule('Terminados'))
-                    <a href="{{ route('terminados.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('terminados.*') ? 'bg-green-600/20 text-white' : '' }}">Terminados</a>
+                @if ($canAccess('Proveedores'))
+                <a href="{{ route('proveedores.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('proveedores.*') ? 'bg-green-600/20 text-white' : '' }}">🚚 Proveedores</a>
                 @endif
-                @if ($canViewModule('Reportes'))
-                    <a href="{{ route('reportes.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('reportes.*') ? 'bg-green-600/20 text-white' : '' }}">Reportes</a>
+                @if ($canAccess('Permisos'))
+                <a href="{{ route('permisos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('permisos.*') ? 'bg-green-600/20 text-white' : '' }}">🔐 Permisos</a>
                 @endif
 
+                @if ($canAccess('Reportes'))
                 <div class="col-span-2 mt-4 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest">
-                    Soporte operativo
+                    📊 Inteligencia y Control
                 </div>
-                @if ($canViewModule('Insumos'))
-                    <a href="{{ route('insumos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('insumos.*') ? 'bg-green-600/20 text-white' : '' }}">Insumos</a>
+                <a href="{{ route('reportes.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('reportes.*') ? 'bg-green-600/20 text-white' : '' }}">📈 Reportes operativos</a>
                 @endif
-                @if ($canViewModule('Compras'))
-                    <a href="{{ route('compras.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('compras.*') ? 'bg-green-600/20 text-white' : '' }}">Compras</a>
-                @endif
-                @if ($canViewModule('Compras') || $sessionRole === 'PROVEEDOR' || $sessionRole === 'ALMACEN')
-                    <a href="{{ route('entregas.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('entregas.*') ? 'bg-green-600/20 text-white' : '' }}">
-                        @if($sessionRole === 'PROVEEDOR') Mis entregas @elseif($sessionRole === 'ALMACEN') Gestión entregas @else Entregas @endif
-                    </a>
-                @endif
-
-                <div class="col-span-2 mt-4 mb-1 px-1 text-[0.73rem] text-slate-400 uppercase font-bold tracking-widest">
-                    Administración
-                </div>
-                @if ($canViewModule('Proveedores'))
-                    <a href="{{ route('proveedores.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('proveedores.*') ? 'bg-green-600/20 text-white' : '' }}">Proveedores</a>
-                @endif
-                @if ($canViewModule('Crear usuarios y otorgar permisos'))
-                    <a href="{{ route('permisos.index') }}" class="block px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-green-600/20 transition-colors {{ request()->routeIs('permisos.*') ? 'bg-green-600/20 text-white' : '' }}">Gestión de usuarios</a>
                 @endif
             </nav>
 
             <div class="mt-8 p-3 border border-white/20 rounded-xl text-sm text-slate-200">
-                <div class="font-bold text-white mb-0.5">{{ session('auth_user_nombre', 'Usuario') }}</div>
-                <div class="text-xs text-slate-400 mb-3">Rol: {{ session('auth_user_rol', '-') }}</div>
+                <div class="font-bold text-white mb-0.5">{{ $authUser?->name ?: 'Usuario' }}</div>
+                <div class="text-xs text-slate-400 mb-3">Rol: {{ $roleLabel }}</div>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded-lg transition-colors shadow-sm active:scale-95">
@@ -97,9 +94,12 @@
                     </button>
                 </form>
             </div>
-        </aside>
 
-        <main class="p-6">
+        </aside>
+        @endif
+
+        <main class="{{ $isFullPage ? '' : 'p-6' }}">
+            @if (! $isFullPage)
             <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm min-h-full">
                 
                 @if (session('ok'))
@@ -116,6 +116,9 @@
 
                 @yield('content')
             </div>
+            @else
+                @yield('content')
+            @endif
         </main>
     </div>
 

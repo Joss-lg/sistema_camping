@@ -133,7 +133,7 @@
                             <th class="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">Orden</th>
                             <th class="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Producto / SKU</th>
                             <th class="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Estado</th>
-                            <th class="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Progreso (Completada / Objetivo)</th>
+                            <th class="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Progreso (Finalizada / Objetivo)</th>
                             <th class="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fecha</th>
                         </tr>
                     </thead>

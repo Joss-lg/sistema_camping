@@ -5,41 +5,121 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class OrdenCompra extends Model
 {
-    protected $table = 'orden_compra';
+    use SoftDeletes;
+
+    protected $table = 'ordenes_compra';
 
     protected $fillable = [
+        'numero_orden',
         'proveedor_id',
-        'fecha',
-        'fecha_esperada',
-        'estado_id',
-        'usuario_id',
+        'user_id',
+        'fecha_orden',
+        'fecha_entrega_prevista',
+        'fecha_entrega_real',
+        'estado',
+        'total_items',
+        'total_cantidad',
+        'subtotal',
+        'impuestos',
+        'descuentos',
+        'costo_flete',
+        'monto_total',
+        'numero_folio_proveedor',
+        'numero_contenedor',
+        'numero_awb',
+        'notas',
+        'condiciones_pago',
+        'incoterm',
     ];
 
     protected $casts = [
-        'fecha' => 'datetime',
-        'fecha_esperada' => 'datetime',
+        'fecha_orden' => 'datetime',
+        'fecha_entrega_prevista' => 'date',
+        'fecha_entrega_real' => 'date',
+        'total_cantidad' => 'decimal:4',
+        'subtotal' => 'decimal:4',
+        'impuestos' => 'decimal:4',
+        'descuentos' => 'decimal:4',
+        'costo_flete' => 'decimal:4',
+        'monto_total' => 'decimal:4',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
+
+    // ============ RELATIONSHIPS ============
 
     public function proveedor(): BelongsTo
     {
         return $this->belongsTo(Proveedor::class, 'proveedor_id');
     }
 
-    public function estado(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(Estado::class, 'estado_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function usuario(): BelongsTo
+    // Downstream relationships
+    public function detalles(): HasMany
     {
-        return $this->belongsTo(Usuario::class, 'usuario_id');
+        return $this->hasMany(OrdenCompraDetalle::class, 'orden_compra_id');
     }
 
-    public function items(): HasMany
+    public function lotesInsumos(): HasMany
     {
-        return $this->hasMany(ItemCompra::class, 'orden_compra_id');
+        return $this->hasMany(LoteInsumo::class, 'orden_compra_id');
+    }
+
+    public function movimientosInventario(): HasMany
+    {
+        return $this->hasMany(MovimientoInventario::class, 'orden_compra_id');
+    }
+
+    // ============ SCOPES ============
+
+    public function scopeEstado($query, $estado)
+    {
+        return $query->where('estado', $estado);
+    }
+
+    public function scopePendientes($query)
+    {
+        return $query->where('estado', 'Pendiente');
+    }
+
+    public function scopeConfirmadas($query)
+    {
+        return $query->where('estado', 'Confirmada');
+    }
+
+    public function scopeRecibidas($query)
+    {
+        return $query->where('estado', 'Recibida');
+    }
+
+    public function scopeProveedor($query, $proveedorId)
+    {
+        return $query->where('proveedor_id', $proveedorId);
+    }
+
+    public function scopePorFecha($query, $desde, $hasta)
+    {
+        return $query->whereBetween('fecha_orden', [$desde, $hasta]);
+    }
+
+    // ============ HELPERS ============
+
+    public function puedeRecibirse(): bool
+    {
+        return in_array($this->estado, ['Confirmada', 'Pendiente']);
+    }
+
+    public function puedeModificarse(): bool
+    {
+        return in_array($this->estado, ['Pendiente', 'Confirmada']);
     }
 }

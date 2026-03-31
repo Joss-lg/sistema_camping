@@ -8,6 +8,7 @@ use App\Http\Middleware\ProveedorOnly;
 use App\Http\Middleware\SessionAuth;
 
 return Application::configure(basePath: dirname(__DIR__))
+    ->withEvents(discover: false)
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',

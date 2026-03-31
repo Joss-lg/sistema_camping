@@ -25,6 +25,11 @@
                 <span class="text-xs font-bold text-green-400 uppercase">Finalizadas</span>
                 <div class="text-2xl font-bold text-green-700">{{ $statsFinalizadas }}</div>
             </div>
+            <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 shadow-sm min-w-[160px]">
+                <span class="text-xs font-bold text-amber-500 uppercase">Merma Mes</span>
+                <div class="text-2xl font-bold text-amber-700">{{ number_format($statsMerma, 2) }}</div>
+                <div class="text-[11px] text-amber-600">{{ number_format($statsMermaPorcentaje, 2) }}%</div>
+            </div>
         </div>
     </div>
 
@@ -49,7 +54,7 @@
             <svg class="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0h-2m8-3V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-3z"></path></svg>
             <div>
                 <strong class="text-lg block font-bold">Acceso limitado</strong>
-                <p class="opacity-90">Solo ADMIN y ALMACEN pueden crear órdenes o registrar consumos.</p>
+                <p class="opacity-90">Solo ADMIN, SUPER ADMIN y ALMACEN pueden crear órdenes o registrar consumos.</p>
             </div>
         </div>
     @else
@@ -95,6 +100,28 @@
                             <label class="text-xs font-bold text-slate-500 uppercase">Fecha esperada</label>
                             <input name="fecha_esperada" type="datetime-local" value="{{ old('fecha_esperada') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
                         </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold text-slate-500 uppercase">Etapa inicial</label>
+                            <select name="etapa_fabricacion_actual" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+                                @foreach ($etapasFabricacion as $etapaFabricacion)
+                                    <option value="{{ $etapaFabricacion }}" @selected(old('etapa_fabricacion_actual', 'Corte') === $etapaFabricacion)>{{ $etapaFabricacion }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-bold text-slate-500 uppercase">Turno asignado</label>
+                            <select name="turno_asignado" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+                                <option value="">Sin turno</option>
+                                @foreach ($turnos as $turno)
+                                    <option value="{{ $turno }}" @selected(old('turno_asignado') === $turno)>{{ $turno }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5 md:col-span-2">
+                            <label class="text-xs font-bold text-slate-500 uppercase">Máquina o estación</label>
+                            <input name="maquina_asignada" type="text" value="{{ old('maquina_asignada') }}" placeholder="Ej: Máquina costura Juki #2"
+                                class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
                     </div>
                     <div class="flex items-center gap-2">
                         <input type="checkbox" id="solicitar_compra" name="solicitar_compra" value="1" class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500">
@@ -118,9 +145,17 @@
                             <select name="orden_produccion_id" required class="border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
                                 <option value="">Selecciona</option>
                                 @foreach ($ordenes as $orden)
-                                    <option value="{{ $orden->id }}" @selected((int) old('orden_produccion_id') === (int) $orden->id)>#{{ $orden->id }} - {{ $orden->producto?->nombre }}</option>
+                                    <option value="{{ $orden->id }}" @selected((int) old('orden_produccion_id') === (int) $orden->id) @disabled($orden->bloqueada_aprobacion)>
+                                        #{{ $orden->id }} - {{ $orden->producto?->nombre }}
+                                        @if($orden->bloqueada_aprobacion)
+                                            (Bloqueada por aprobacion)
+                                        @endif
+                                    </option>
                                 @endforeach
                             </select>
+                            <p class="text-[10px] text-amber-700 mt-1">
+                                Las ordenes con etapa en Esperando Aprobacion no permiten registrar consumo hasta firma.
+                            </p>
                         </div>
                         <div class="flex flex-col gap-1">
                             <label class="font-bold text-slate-600 text-[11px] uppercase">Material</label>
@@ -146,6 +181,15 @@
                         <div class="flex flex-col gap-1">
                             <label class="font-bold text-slate-600 text-[11px] uppercase italic">Motivo Merma</label>
                             <input name="motivo_merma" type="text" value="{{ old('motivo_merma') }}" placeholder="..." class="border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="font-bold text-slate-600 text-[11px] uppercase italic">Tipo Merma</label>
+                            <select name="tipo_merma" class="border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none text-xs bg-white">
+                                <option value="">Selecciona</option>
+                                @foreach($tiposMerma as $tipoMerma)
+                                    <option value="{{ $tipoMerma }}" @selected(old('tipo_merma') === $tipoMerma)>{{ $tipoMerma }}</option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg shadow-sm">Registrar consumo</button>
@@ -177,7 +221,9 @@
                         <th class="p-4 font-bold uppercase tracking-tighter text-[10px]">Producto / SKU</th>
                         <th class="p-4 font-bold uppercase tracking-tighter text-[10px]">Progreso</th>
                         <th class="p-4 font-bold uppercase tracking-tighter text-[10px]">Estado</th>
+                        <th class="p-4 font-bold uppercase tracking-tighter text-[10px]">Etapa Fab.</th>
                         <th class="p-4 font-bold uppercase tracking-tighter text-[10px]">Responsable</th>
+                        <th class="p-4 font-bold uppercase tracking-tighter text-[10px]">Máquina / Turno</th>
                         <th class="p-4 font-bold uppercase tracking-tighter text-[10px]">Fechas</th>
                         <th class="p-4 font-bold uppercase tracking-tighter text-[10px] w-64">Consumos Material</th>
                         @if ($canManage)
@@ -186,26 +232,8 @@
                     </tr>
                 </thead>
                 <tbody id="tabla-seguimiento-ordenes" class="divide-y divide-slate-100">
-                    @forelse ($ordenes as $orden)
-                        {{-- Aquí va el contenido de cada fila de orden, por ejemplo: --}}
-                        <tr>
-                            <td class="p-4 font-mono text-xs text-blue-600 font-bold">#{{ $orden->id }}</td>
-                            <td class="p-4">{{ $orden->producto?->nombre }}<br><span class="text-xs text-slate-400">{{ $orden->producto?->sku }}</span></td>
-                            <td class="p-4">{{ $orden->progreso ?? '-' }}</td>
-                            <td class="p-4">{{ $orden->estado?->nombre ?? '-' }}</td>
-                            <td class="p-4">{{ $orden->responsable?->nombre ?? '-' }}</td>
-                            <td class="p-4">{{ $orden->fecha_inicio ?? '-' }}<br>{{ $orden->fecha_esperada ?? '-' }}</td>
-                            <td class="p-4">{{-- Consumos material --}}</td>
-                            @if ($canManage)
-                                <td class="p-4 bg-slate-100/50">{{-- Botón actualizar --}}</td>
-                            @endif
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="8" class="p-6 text-center text-slate-400 italic">No hay órdenes registradas.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
+            @include('produccion.partials.tabla_ordenes', ['ordenes' => $ordenes, 'canManage' => $canManage, 'usuarios' => $usuarios])
+        </tbody>
             </table>
         </div>
     </section>

@@ -1,6 +1,17 @@
 @extends('layouts.app')
 
 @section('content')
+    @php
+        $kpis = $kpis ?? [
+            'entregasPendientesRevision' => 0,
+            'insumosBajoMinimo' => 0,
+            'ordenesEnProceso' => 0,
+        ];
+        $access = $access ?? ['produccion' => false];
+        $ultimasEntregas = $ultimasEntregas ?? collect();
+        $ultimasOrdenes = $ultimasOrdenes ?? collect();
+    @endphp
+
     <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
         <div>
             <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard Operativo</h1>
@@ -52,29 +63,25 @@
             </ol>
         </section>
 
-        <section class="border border-slate-200 rounded-[10px] p-3.5 bg-white shadow-sm">
-            <h2 class="text-base font-bold text-slate-900 mb-2.5 border-b border-slate-50 pb-2">Accesos rápidos</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('dashboard') }}">1. Dashboard</a>
-                @if ($access['produccion'])
-                    <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('produccion.bom.index') }}">2. Órdenes y recetas</a>
-                    <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('produccion.index') }}">3. Producción</a>
-                @endif
-                <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('trazabilidad.index') }}">4. Trazabilidad</a>
-                @if ($access['terminados'])
-                    <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('terminados.index') }}">5. Terminados</a>
-                @endif
-                <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('reportes.index') }}">6. Reportes</a>
-                <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('insumos.index') }}">7. Insumos</a>
-                <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('compras.index') }}">8. Compras</a>
-                <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('entregas.index') }}">9. Entregas</a>
-                <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('proveedores.index') }}">10. Proveedores</a>
-                @if ($access['permisos'])
-                    <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('permisos.index') }}">11. Gestión de usuarios</a>
-                @endif
-            </div>
-        </section>
-
+<section class="border border-slate-200 rounded-[10px] p-3.5 bg-white shadow-sm">
+    <h2 class="text-base font-bold text-slate-900 mb-2.5 border-b border-slate-50 pb-2">Accesos directos principales</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('insumos.index') }}">
+            1. Insumos
+        </a>
+        @if (($access['produccion'] ?? false))
+            <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('produccion.bom.index') }}">
+                2. Órdenes y recetas
+            </a>
+        @endif
+            <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('ordenes-compra.index') }}">
+            3. Compras
+        </a>
+        <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('entregas.index') }}">
+            4. Entregas
+        </a>
+    </div>
+</section>
         @php
             $tablas = [
                 ['titulo' => 'Últimas entregas', 'data' => $ultimasEntregas, 'tipo' => 'entregas'],

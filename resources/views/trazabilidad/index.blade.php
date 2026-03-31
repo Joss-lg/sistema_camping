@@ -80,14 +80,14 @@
                             @forelse ($productos as $producto)
                             <tr class="hover:bg-slate-50/80 transition-colors {{ $selectedProducto && $selectedProducto->id == $producto->id ? 'bg-indigo-50/50' : '' }}">
                                 <td class="px-6 py-4">
-                                    <div class="text-sm font-bold text-slate-800">{{ $producto->nombre }}</div>
+                                    <div class="text-sm font-bold text-slate-800">{{ $producto->tipoProducto?->nombre ?? 'Producto terminado' }}</div>
                                     <div class="text-[11px] text-slate-500 font-medium">
-                                        <span class="font-mono text-slate-400 uppercase">{{ $producto->sku ?? '-' }}</span>
+                                        <span class="font-mono text-slate-400 uppercase">{{ $producto->numero_serie ?? $producto->numero_lote_produccion ?? '-' }}</span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-block px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter bg-slate-100 text-slate-600 border border-slate-200">
-                                        {{ $producto->estado?->nombre ?? 'Indefinido' }}
+                                        {{ $producto->estado ?? 'Indefinido' }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right">
@@ -139,30 +139,59 @@
                     @else
                         <div class="mb-6 pb-4 border-b border-slate-100">
                             <div class="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Visualizando historial de:</div>
-                            <div class="text-lg font-black text-slate-800 leading-tight">{{ $selectedProducto->nombre }}</div>
-                            <div class="text-xs text-slate-500 mt-1">SKU: {{ $selectedProducto->sku }}</div>
+                            <div class="text-lg font-black text-slate-800 leading-tight">{{ $selectedProducto->tipoProducto?->nombre ?? 'Producto terminado' }}</div>
+                            <div class="text-xs text-slate-500 mt-1">Serie/Lote: {{ $selectedProducto->numero_serie ?? $selectedProducto->numero_lote_produccion ?? '-' }}</div>
                         </div>
 
                         <div class="relative pl-6 border-l-2 border-slate-100 space-y-8">
-                            @forelse ($selectedProducto->pasosTrazabilidad->sortByDesc('fecha') as $paso)
+                            @forelse ($selectedProducto->etapasTrazabilidad->sortByDesc('fecha_fin_real')->sortByDesc('fecha_inicio_real') as $paso)
                             <div class="relative">
                                 {{-- Punto de la línea --}}
                                 <div class="absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white bg-indigo-600 shadow-sm"></div>
                                 
                                 <div class="flex flex-col gap-1">
                                     <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        {{ optional($paso->fecha)->format('d M, Y · H:i') }}
+                                        {{ optional($paso->fecha_fin_real ?? $paso->fecha_inicio_real ?? $paso->created_at)->format('d M, Y · H:i') }}
                                     </span>
-                                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">{{ $paso->etapa }}</h3>
+                                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">{{ $paso->etapaPlantilla?->nombre ?? 'Etapa' }}</h3>
+                                    <div class="mt-1">
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider {{ in_array($paso->estado, ['Esperando Aprobacion', 'Esperando Aprobación']) ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-600 border border-slate-200' }}">
+                                            {{ $paso->estado }}
+                                        </span>
+                                    </div>
                                     <p class="text-xs text-slate-500 leading-relaxed bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1">
-                                        {{ $paso->descripcion ?: 'Sin observaciones adicionales.' }}
+                                        {{ $paso->notas_produccion ?: ($paso->observaciones_etapa ?: 'Sin observaciones adicionales.') }}
                                     </p>
+                                    @if (in_array($paso->estado, ['Esperando Aprobacion', 'Esperando Aprobación']))
+                                        <div class="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                            Acciones bloqueadas: registrar consumos e iniciar tiempos hasta firma de aprobacion.
+                                        </div>
+
+                                        @can('aprobar', $paso)
+                                            <form method="POST" action="{{ route('trazabilidad.etapas.aprobar', ['etapaId' => $paso->id]) }}" class="mt-3">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+                                                    Aprobar Recepcion
+                                                </button>
+                                            </form>
+                                        @else
+                                            <div class="mt-2 text-[11px] text-slate-500">
+                                                Solo el responsable del area o rol autorizado puede aprobar esta etapa.
+                                            </div>
+                                        @endcan
+                                    @endif
                                     <div class="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-slate-400 uppercase">
                                         <div class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px] text-slate-500">
-                                            {{ substr($paso->usuario?->nombre ?? 'U', 0, 1) }}
+                                            {{ substr($paso->ordenProduccion?->user?->name ?? 'S', 0, 1) }}
                                         </div>
-                                        Responsable: {{ $paso->usuario?->nombre ?? 'Sistema' }}
+                                        Responsable: {{ $paso->ordenProduccion?->user?->name ?? 'Sistema' }}
                                     </div>
+                                    @if ($paso->aprobador)
+                                        <div class="mt-1 text-[10px] font-bold uppercase tracking-wider text-green-700">
+                                            Aprobado por: {{ $paso->aprobador->name }}
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                             @empty
@@ -178,3 +207,4 @@
     </div>
 </div>
 @endsection
+

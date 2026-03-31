@@ -1,199 +1,214 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-8">
-    {{-- Encabezado --}}
-    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div class="container mx-auto px-4 py-6 space-y-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">2. Gestión de Terminados</h1>
-            <p class="text-slate-500 mt-2 max-w-2xl italic">
-                Registra ingresos desde órdenes finalizadas, gestiona el catálogo de productos finales y aplica ajustes auditados de stock.
-            </p>
+            <h1 class="text-3xl font-extrabold text-slate-800">Terminados</h1>
+            <p class="text-slate-500 text-sm mt-1">Registra ingresos desde producción y aplica ajustes auditados sobre inventario final.</p>
         </div>
-        {{-- Badge de estado rápido --}}
-        <div class="flex gap-2">
-            <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold self-center border border-green-200">
-                Flujo: Producción → Almacén
-            </span>
-        </div>
+        <span class="inline-flex items-center bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold border border-green-200">
+            Flujo: Producción a Almacén
+        </span>
     </div>
 
-    {{-- Dashboard de Estadísticas --}}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <article class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 transition-transform hover:scale-[1.02]">
-            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+    <section class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
+            <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-semibold text-slate-600">Filtrar por almacén</label>
+                <select name="ubicacion_almacen_id" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-slate-500 outline-none">
+                    <option value="">Todas las ubicaciones</option>
+                    @foreach ($ubicaciones as $ubicacion)
+                        <option value="{{ $ubicacion->id }}" @selected((string) $ubicacionFiltro === (string) $ubicacion->id)>
+                            {{ $ubicacion->nombre }} ({{ $ubicacion->codigo_ubicacion }})
+                        </option>
+                    @endforeach
+                </select>
             </div>
-            <div>
-                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Catálogo Productos</div>
-                <div class="text-2xl font-black text-slate-800 leading-none mt-1">{{ $statsTotalProductos }}</div>
-            </div>
-        </article>
+            <button class="bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-4 py-2.5 font-semibold text-sm">Filtrar</button>
+            <a href="{{ route('terminados.index') }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg px-4 py-2.5 font-semibold text-sm text-center">Limpiar</a>
+        </form>
+    </section>
 
-        <article class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 transition-transform hover:scale-[1.02]">
-            <div class="p-3 bg-red-50 text-red-600 rounded-xl">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            </div>
-            <div>
-                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest text-red-500">Stock Crítico</div>
-                <div class="text-2xl font-black text-slate-800 leading-none mt-1">{{ $statsStockBajo }}</div>
-            </div>
-        </article>
-
-        <article class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 transition-transform hover:scale-[1.02]">
-            <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-            </div>
-            <div>
-                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Lotes Activos</div>
-                <div class="text-2xl font-black text-slate-800 leading-none mt-1">{{ $statsLotes }}</div>
-            </div>
-        </article>
-    </div>
-
-    {{-- Mensajes de Error --}}
     @if ($errors->any())
-        <div class="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl shadow-md">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Stock Inicial</label>
-                        <input name="stock" type="number" step="0.01" value="{{ old('stock', 0) }}" class="border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-green-500/10 outline-none font-mono">
-                    </div>
-                    <div class="flex flex-col gap-1">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Stock Mínimo</label>
-                        <input name="stock_minimo" type="number" step="0.01" value="{{ old('stock_minimo', 0) }}" class="border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-red-500/10 outline-none font-mono text-red-600 font-bold">
-                    </div>
-                    <div class="md:col-span-2 mt-2">
-                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-green-100 active:scale-95">
-                            Guardar Producto en Catálogo
-                        </button>
-                    </div>
-                </form>
-            </section>
-
-            <div class="space-y-6">
-                {{-- Ingreso desde Orden --}}
-                <section class="bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden p-6 text-white">
-                    <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                        <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                        Ingreso desde Producción
-                    </h2>
-                    <form method="POST" action="{{ route('terminados.ingresos.store') }}" class="space-y-4">
-                        @csrf
-                        <div class="flex flex-col gap-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Seleccionar Orden Finalizada</label>
-                            <select name="orden_produccion_id" required class="bg-slate-900 border border-slate-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white">
-                                <option value="">Selecciona una orden...</option>
-                                @foreach ($ordenesFinalizadas as $orden)
-                                    @php $pendiente = max((float) $orden->cantidad_completada - (float) ($orden->cantidad_ingresada ?? 0), 0); @endphp
-                                    <option value="{{ $orden->id }}" @selected(old('orden_produccion_id') == $orden->id)>
-                                        #{{ $orden->id }} - {{ $orden->producto?->nombre }} (Pendiente: {{ number_format($pendiente, 2) }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4 items-end">
-                            <div class="flex flex-col gap-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cantidad Real</label>
-                                <input name="cantidad_ingreso" type="number" step="0.01" required class="bg-slate-900 border border-slate-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white font-mono">
-                            </div>
-                            <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-95">
-                                Registrar Entrada
-                            </button>
-                        </div>
-                    </form>
-                </section>
-
-                {{-- Ajuste Manual --}}
-                <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden p-6">
-                    <h2 class="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Ajuste de Auditoría</h2>
-                    <form method="POST" action="{{ route('terminados.ajustes.store') }}" class="grid grid-cols-2 gap-4">
-                        @csrf
-                        <div class="col-span-2 flex flex-col gap-1 text-xs">
-                            <label class="font-bold text-slate-500 uppercase ml-1">Producto</label>
-                            <select name="producto_id" required class="border border-slate-300 rounded-xl p-2.5 outline-none bg-slate-50">
-                                <option value="">Selecciona producto...</option>
-                                @foreach ($productos as $producto)
-                                    <option value="{{ $producto->id }}">
-                                        {{ $producto->nombre }} (Stock: {{ number_format($producto->stock, 2) }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <select name="tipo_ajuste" required class="border border-slate-300 rounded-xl p-2.5 text-xs font-bold uppercase bg-white">
-                                <option value="SUMAR">➕ Sumar</option>
-                                <option value="RESTAR">➖ Restar</option>
-                            </select>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <input name="cantidad" type="number" step="0.01" placeholder="Cant." required class="border border-slate-300 rounded-xl p-2.5 text-sm font-mono outline-none">
-                        </div>
-                        <div class="col-span-2">
-                            <textarea name="motivo" placeholder="Motivo del ajuste (Ej: Merma, Auditoría)..." required class="w-full border border-slate-300 rounded-xl p-2.5 text-xs h-16 outline-none"></textarea>
-                        </div>
-                        <button type="submit" class="col-span-2 bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-xl transition-all text-xs uppercase tracking-widest">
-                            Aplicar Ajuste Auditado
-                        </button>
-                    </form>
-                </section>
-            </div>
+        <div class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-sm">
+            {{ $errors->first() }}
         </div>
     @endif
 
-    {{-- Inventario Detallado --}}
-    <section class="bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden mb-10">
-        <div class="bg-slate-900 px-8 py-5 flex justify-between items-center">
-            <h2 class="text-white font-black tracking-tight flex items-center gap-2">
-                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-                Inventario General de Terminados
-            </h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <article class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div class="text-xs font-bold uppercase text-slate-400">Productos</div>
+            <div class="text-3xl font-extrabold text-slate-800 mt-2">{{ $statsTotalProductos }}</div>
+        </article>
+        <article class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div class="text-xs font-bold uppercase text-red-500">Stock Crítico</div>
+            <div class="text-3xl font-extrabold text-slate-800 mt-2">{{ $statsStockBajo }}</div>
+        </article>
+        <article class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div class="text-xs font-bold uppercase text-slate-400">Lotes Activos</div>
+            <div class="text-3xl font-extrabold text-slate-800 mt-2">{{ $statsLotes }}</div>
+        </article>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-4 mb-5">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800">Ingreso desde producción</h2>
+                    <p class="text-slate-500 text-sm mt-1">Convierte una orden finalizada en inventario disponible.</p>
+                </div>
+                <span class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
+                    {{ $ordenesFinalizadas->count() }} órdenes
+                </span>
+            </div>
+
+            <form method="POST" action="{{ route('terminados.ingresos.store') }}" class="space-y-4">
+                @csrf
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-semibold text-slate-600">Orden finalizada</label>
+                    <select name="orden_produccion_id" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="">Selecciona una orden</option>
+                        @foreach ($ordenesFinalizadas as $orden)
+                            @php $pendiente = max((float) $orden->cantidad_completada - (float) ($orden->cantidad_ingresada ?? 0), 0); @endphp
+                            <option value="{{ $orden->id }}" @selected((string) old('orden_produccion_id') === (string) $orden->id)>
+                                #{{ $orden->id }} - {{ $orden->producto?->nombre }} (Pendiente: {{ number_format($pendiente, 2) }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-semibold text-slate-600">Cantidad de ingreso</label>
+                    <input name="cantidad_ingreso" type="number" step="0.01" value="{{ old('cantidad_ingreso') }}" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-semibold text-slate-600">Ubicación destino</label>
+                    <select name="ubicacion_almacen_id" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="">Ubicación activa por defecto</option>
+                        @foreach ($ubicaciones as $ubicacion)
+                            <option value="{{ $ubicacion->id }}" @selected((string) old('ubicacion_almacen_id') === (string) $ubicacion->id)>
+                                {{ $ubicacion->nombre }} ({{ $ubicacion->codigo_ubicacion }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm">Registrar entrada</button>
+            </form>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+            <div class="mb-5">
+                <h2 class="text-lg font-bold text-slate-800">Ajuste de inventario</h2>
+                <p class="text-slate-500 text-sm mt-1">Aplica un movimiento manual auditado sobre producto terminado.</p>
+            </div>
+
+            <form method="POST" action="{{ route('terminados.ajustes.store') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @csrf
+                <div class="md:col-span-2 flex flex-col gap-1.5">
+                    <label class="text-sm font-semibold text-slate-600">Producto</label>
+                    <select name="producto_id" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="">Selecciona producto</option>
+                        @foreach ($productos as $producto)
+                            <option value="{{ $producto->id }}" @selected((string) old('producto_id') === (string) $producto->id)>
+                                {{ $producto->nombre }} (Stock: {{ number_format($producto->stock, 2) }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-semibold text-slate-600">Tipo de ajuste</label>
+                    <select name="tipo_ajuste" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+                        <option value="SUMAR" @selected(old('tipo_ajuste') === 'SUMAR')>Sumar</option>
+                        <option value="RESTAR" @selected(old('tipo_ajuste') === 'RESTAR')>Restar</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-sm font-semibold text-slate-600">Cantidad</label>
+                    <input name="cantidad" type="number" step="0.01" value="{{ old('cantidad') }}" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                </div>
+                <div class="md:col-span-2 flex flex-col gap-1.5">
+                    <label class="text-sm font-semibold text-slate-600">Motivo</label>
+                    <textarea name="motivo" rows="3" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">{{ old('motivo') }}</textarea>
+                </div>
+                <div class="md:col-span-2">
+                    <button type="submit" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-lg shadow-sm">Aplicar ajuste</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-bold text-slate-800">Inventario general</h2>
+                <p class="text-slate-500 text-sm mt-1">Estado actual del inventario de productos terminados.</p>
+            </div>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table class="w-full text-left border-collapse min-w-[760px]">
                 <thead>
-                    <tr class="bg-slate-50 border-b border-slate-200">
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Producto / SKU</th>
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Categoría</th>
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Unidad</th>
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Stock Actual</th>
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Límites (Mín/Máx)</th>
+                    <tr class="bg-slate-50 border-b border-slate-100 text-slate-500">
+                        <th class="px-6 py-4 text-xs font-bold uppercase">Producto</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-center">Almacén</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-center">Identificación</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-center">Categoría</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-center">Unidad</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-right">Stock</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-center">Rangos</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-center">Trazabilidad</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
                     @forelse ($productos as $producto)
-                    @php $isLow = $producto->stock <= $producto->stock_minimo; @endphp
-                    <tr class="hover:bg-slate-50/80 transition-colors {{ $isLow ? 'bg-red-50/30' : '' }}">
-                        <td class="px-6 py-4">
-                            <div class="text-sm font-bold text-slate-800">{{ $producto->nombre }}</div>
-                            <div class="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">{{ $producto->sku }}</div>
-                        </td>
-                        <td class="px-6 py-4 text-center">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">{{ $producto->categoria?->nombre ?? '-' }}</span>
-                        </td>
-                        <td class="px-6 py-4 text-center text-sm text-slate-500">{{ $producto->unidad?->nombre ?? '-' }}</td>
-                        <td class="px-6 py-4 text-right">
-                            <div class="text-lg font-black {{ $isLow ? 'text-red-600' : 'text-slate-800' }}">
-                                {{ number_format((float) $producto->stock, 2) }}
-                            </div>
-                        </td>
-                        <td class="px-6 py-4">
-                            <div class="flex flex-col gap-1 items-center">
-                                <div class="w-full max-w-[100px] bg-slate-200 h-1.5 rounded-full overflow-hidden flex">
-                                    <div class="bg-blue-500 h-full" style="width: {{ min(($producto->stock / max($producto->stock_maximo, 1)) * 100, 100) }}%"></div>
+                        @php $isLow = $producto->stock <= $producto->stock_minimo; @endphp
+                        <tr class="hover:bg-slate-50/60 transition-colors {{ $isLow ? 'bg-red-50/30' : '' }}">
+                            <td class="px-6 py-4">
+                                <div class="font-bold text-slate-800">{{ $producto->nombre }}</div>
+                                <div class="text-[10px] font-mono text-slate-400 uppercase">{{ $producto->sku }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-center text-xs">
+                                <div class="font-semibold text-slate-700">{{ $producto->ubicacion->nombre ?? '-' }}</div>
+                                <div class="text-slate-400">{{ $producto->ubicacion->codigo ?? '-' }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-[10px]">
+                                <div class="font-semibold text-slate-700">Serie: {{ $producto->numero_serie ?? '-' }}</div>
+                                <div class="text-slate-500">Bar: {{ $producto->codigo_barras ?? '-' }}</div>
+                                <div class="text-slate-400 truncate max-w-[220px]">QR: {{ $producto->codigo_qr ?? '-' }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">{{ $producto->categoria?->nombre ?? '-' }}</span>
+                            </td>
+                            <td class="px-6 py-4 text-center">{{ $producto->unidad?->nombre ?? '-' }}</td>
+                            <td class="px-6 py-4 text-right font-bold {{ $isLow ? 'text-red-600' : 'text-slate-800' }}">{{ number_format((float) $producto->stock, 2) }}</td>
+                            <td class="px-6 py-4">
+                                <div class="flex flex-col gap-1 items-center">
+                                    <div class="w-full max-w-[110px] bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                        <div class="bg-blue-500 h-full" style="width: {{ min(($producto->stock / max($producto->stock_maximo, 1)) * 100, 100) }}%"></div>
+                                    </div>
+                                    <div class="flex justify-between w-full max-w-[110px] text-[9px] font-bold uppercase text-slate-400">
+                                        <span>Min {{ number_format($producto->stock_minimo, 0) }}</span>
+                                        <span>Max {{ number_format($producto->stock_maximo, 0) }}</span>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between w-full max-w-[100px] text-[9px] font-bold uppercase text-slate-400 tracking-tighter">
-                                    <span>Min: {{ number_format($producto->stock_minimo, 0) }}</span>
-                                    <span>Max: {{ number_format($producto->stock_maximo, 0) }}</span>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                @if(! empty($producto->numero_lote_produccion))
+                                    <a href="{{ route('trazabilidad.show', $producto->numero_lote_produccion) }}" class="inline-flex items-center px-3 py-1 rounded-lg bg-sky-50 text-sky-700 text-xs font-bold border border-sky-100 hover:bg-sky-100">
+                                        Ver lote
+                                    </a>
+                                @else
+                                    <span class="text-xs text-slate-400">Sin lote</span>
+                                @endif
+                            </td>
+                        </tr>
                     @empty
-                    <tr><td colspan="5" class="px-6 py-12 text-center text-slate-400 italic">No hay productos terminados registrados.</td></tr>
+                        <tr>
+                            <td colspan="8" class="px-6 py-10 text-center text-slate-500">No hay productos terminados registrados.</td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </section>
-
-   
+</div>
 @endsection

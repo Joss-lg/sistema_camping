@@ -2,397 +2,595 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Estado;
-use App\Models\ItemCompra;
-use App\Models\Material;
-use App\Models\OrdenCompra;
+use App\Models\ConsumoMaterial;
+use App\Models\Insumo;
+use App\Models\LoteInsumo;
 use App\Models\OrdenProduccion;
-use App\Models\ProductoTerminado;
-use App\Models\Proveedor;
-use App\Models\UsoMaterial;
+use App\Models\OrdenProduccionMaterial;
+use App\Models\TipoProducto;
+use App\Models\UnidadMedida;
+use App\Models\User;
+use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
-use App\Models\RecetaMaterial;
-use App\Models\Usuario;
-use Illuminate\Http\JsonResponse;
 
 class ProduccionController extends Controller
 {
-    public function filtrarOrdenes(Request $request)
+    /** @var array<int, string> */
+    private const ETAPAS_FABRICACION = ['Corte', 'Costura', 'Ensamblado', 'Acabado'];
+
+    /** @var array<int, string> */
+    private const TURNOS = ['Manana', 'Tarde', 'Noche'];
+
+    /** @var array<int, string> */
+    private const TIPOS_MERMA = ['Corte', 'Costura', 'Defecto', 'Manejo', 'Otro'];
+
+    public function index(): View
     {
-        $responsable_id = $request->input('responsable_id');
-        $canManage = $this->canManageProduccion();
-        $ordenes = OrdenProduccion::with([
-            'producto:id,nombre,sku',
-            'estado:id,nombre',
-            'responsable:id,nombre',
-            'usosMaterial.material:id,nombre,stock,unidad_id',
-            'usosMaterial.material.unidad:id,nombre',
-        ])
-        ->when($responsable_id, function ($query) use ($responsable_id) {
-            return $query->where('responsable_id', $responsable_id);
-        })
-        ->orderByDesc('id')
-        ->get();
+        abort_unless(PermisoService::canAccessModule(Auth::user(), 'Produccion'), 403);
 
-        // Renderiza el partial de la tabla con las órdenes filtradas
-        return view('produccion.partials.tabla_ordenes', [
-            'ordenes' => $ordenes,
-            'canManage' => $canManage,
-        ])->render();
-    }
-    public function index(): View|RedirectResponse
-    {
-        if (! $this->canViewModule('Produccion')) {
-            return redirect()->route('dashboard')->with('error', 'No tienes permisos para ver produccion.');
-        }
+        $canManage = $this->canManage();
 
-        $canManage = $this->canManageProduccion();
+        $productos = TipoProducto::query()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn (TipoProducto $producto): object => (object) [
+                'id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'sku' => $producto->slug,
+            ]);
 
-        $ordenes = OrdenProduccion::with([
-            'producto:id,nombre,sku',
-            'estado:id,nombre',
-            'responsable:id,nombre',
-            'usosMaterial.material:id,nombre,stock,unidad_id',
-            'usosMaterial.material.unidad:id,nombre',
-        ])->orderByDesc('id')->get();
+        $usuarios = User::query()
+            ->where('activo', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $usuario): object => (object) [
+                'id' => $usuario->id,
+                'nombre' => $usuario->name,
+            ]);
 
-        return view('produccion.index', [
-            'canManage' => $canManage,
-            'productos' => ProductoTerminado::orderBy('nombre')->get(['id', 'nombre', 'sku']),
-            'materiales' => Material::orderBy('nombre')->get(['id', 'nombre', 'stock', 'unidad_id']),
-            'usuarios' => Usuario::orderBy('nombre')->get(['id', 'nombre']),
-            'ordenes' => $ordenes,
-            'statsOrdenes' => (int) OrdenProduccion::count(),
-            'statsEnProceso' => (int) OrdenProduccion::whereHas('estado', function ($query) {
-                $query->whereRaw('UPPER(nombre) = ?', ['EN_PROCESO']);
-            })->count(),
-            'statsFinalizadas' => (int) OrdenProduccion::whereHas('estado', function ($query) {
-                $query->whereRaw('UPPER(nombre) = ?', ['FINALIZADA']);
-            })->count(),
-        ]);
+        $materiales = Insumo::query()
+            ->with('proveedor:id,razon_social,nombre_comercial')
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->limit(300)
+            ->get()
+            ->map(fn (Insumo $material): object => (object) [
+                'id' => $material->id,
+                'nombre' => $material->nombre,
+                'stock' => (float) $material->stock_actual,
+                'proveedor' => (object) [
+                    'nombre' => $material->proveedor?->nombre_comercial ?: $material->proveedor?->razon_social,
+                ],
+            ]);
+
+        $ordenesRaw = $this->buildOrdenesQuery()->get();
+        $ordenes = $ordenesRaw->map(fn (OrdenProduccion $orden): object => $this->mapOrdenForView($orden));
+
+        $statsOrdenes = $ordenesRaw->count();
+        $statsEnProceso = $ordenesRaw->filter(fn (OrdenProduccion $o): bool => (string) $o->estado === OrdenProduccion::ESTADO_EN_PROCESO)->count();
+        $statsFinalizadas = $ordenesRaw->filter(function (OrdenProduccion $o): bool {
+            return OrdenProduccion::esEstadoFinalizado((string) $o->estado);
+        })->count();
+
+        $consumosPeriodo = ConsumoMaterial::query()
+            ->whereDate('fecha_consumo', '>=', now()->startOfMonth()->toDateString())
+            ->get(['cantidad_consumida', 'cantidad_desperdicio']);
+
+        $statsMerma = round((float) $consumosPeriodo->sum('cantidad_desperdicio'), 2);
+        $totalConsumidoPeriodo = (float) $consumosPeriodo->sum(function (ConsumoMaterial $consumo): float {
+            return (float) $consumo->cantidad_consumida + (float) $consumo->cantidad_desperdicio;
+        });
+        $statsMermaPorcentaje = $totalConsumidoPeriodo > 0
+            ? round(($statsMerma / $totalConsumidoPeriodo) * 100, 2)
+            : 0.0;
+
+        $etapasFabricacion = self::ETAPAS_FABRICACION;
+        $turnos = self::TURNOS;
+        $tiposMerma = self::TIPOS_MERMA;
+
+        return view('produccion.index', compact(
+            'canManage',
+            'productos',
+            'usuarios',
+            'materiales',
+            'ordenes',
+            'statsOrdenes',
+            'statsEnProceso',
+            'statsFinalizadas',
+            'statsMerma',
+            'statsMermaPorcentaje',
+            'etapasFabricacion',
+            'turnos',
+            'tiposMerma'
+        ));
     }
 
     public function store(Request $request): RedirectResponse
     {
-        if (! $this->canManageProduccion()) {
-            return redirect()->route('produccion.index')->with('error', 'No tienes permisos para crear ordenes de produccion.');
-        }
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion', 'editar'), 403);
 
         $data = $request->validate([
-            'producto_id' => ['required', 'integer', 'exists:producto_terminado,id'],
+            'producto_id' => ['required', 'integer', 'exists:tipos_producto,id'],
             'cantidad' => ['required', 'numeric', 'gt:0'],
-            'responsable_id' => ['required', 'integer', 'exists:usuario,id'],
+            'responsable_id' => ['required', 'integer', 'exists:users,id'],
             'fecha_inicio' => ['nullable', 'date'],
-            'fecha_esperada' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
-            'solicitar_compra' => ['nullable', 'boolean'],
+            'fecha_esperada' => ['nullable', 'date'],
+            'etapa_fabricacion_actual' => ['nullable', 'in:Corte,Costura,Ensamblado,Acabado'],
+            'maquina_asignada' => ['nullable', 'string', 'max:120'],
+            'turno_asignado' => ['nullable', 'in:Manana,Tarde,Noche'],
         ]);
 
-        $estadoPendiente = Estado::firstOrCreate([
-            'nombre' => 'PENDIENTE',
-            'tipo' => 'produccion',
+        $unidadId = UnidadMedida::query()->where('activo', true)->value('id')
+            ?? UnidadMedida::query()->value('id');
+
+        if (! $unidadId) {
+            return back()->withErrors(['producto_id' => 'No existe una unidad de medida activa para crear la orden.'])->withInput();
+        }
+
+        OrdenProduccion::query()->create([
+            'tipo_producto_id' => (int) $data['producto_id'],
+            'user_id' => (int) $data['responsable_id'],
+            'fecha_orden' => now(),
+            'fecha_inicio_prevista' => $data['fecha_inicio'] ? Carbon::parse($data['fecha_inicio'])->toDateString() : now()->toDateString(),
+            'fecha_fin_prevista' => $data['fecha_esperada'] ? Carbon::parse($data['fecha_esperada'])->toDateString() : now()->addDay()->toDateString(),
+            'cantidad_produccion' => (float) $data['cantidad'],
+            'unidad_medida_id' => (int) $unidadId,
+            'estado' => OrdenProduccion::ESTADO_PENDIENTE,
+            'etapa_fabricacion_actual' => $data['etapa_fabricacion_actual'] ?? 'Corte',
+            'maquina_asignada' => $data['maquina_asignada'] ?? null,
+            'turno_asignado' => $data['turno_asignado'] ?? null,
+            'prioridad' => 'Normal',
+            'requiere_calidad' => true,
+            'etapas_totales' => 0,
+            'etapas_completadas' => 0,
+            'porcentaje_completado' => 0,
         ]);
 
-        $productoId = (int) $data['producto_id'];
-        $cantidadObjetivo = (float) $data['cantidad'];
-
-        $receta = RecetaMaterial::with('material:id,nombre,stock,proveedor_id')
-            ->where('producto_id', $productoId)
-            ->where('activo', true)
-            ->get();
-
-        if ($receta->isEmpty()) {
-            return back()->withErrors([
-                'producto_id' => 'Este producto no tiene materiales base configurados. Debes registrarlos antes de crear la orden.',
-            ])->withInput();
-        }
-
-        $faltantes = [];
-        foreach ($receta as $linea) {
-            $factorMerma = 1 + ((float) $linea->merma_porcentaje / 100);
-            $cantidadNecesaria = $cantidadObjetivo * (float) $linea->cantidad_base * $factorMerma;
-            $stockDisponible = (float) ($linea->material?->stock ?? 0);
-
-            if ($stockDisponible < $cantidadNecesaria) {
-                $cantidadFaltante = $cantidadNecesaria - $stockDisponible;
-                $faltantes[] = [
-                    'material' => $linea->material,
-                    'cantidad_necesaria' => $cantidadNecesaria,
-                    'cantidad_faltante' => $cantidadFaltante,
-                ];
-            }
-        }
-
-        if (! empty($faltantes)) {
-            $solicitarCompra = (bool) ($data['solicitar_compra'] ?? false);
-            if (! $solicitarCompra) {
-                $faltantesStr = [];
-                foreach ($faltantes as $faltante) {
-                    $faltantesStr[] = $faltante['material']->nombre.' (disp: '.number_format($faltante['material']->stock, 2).', req: '.number_format($faltante['cantidad_necesaria'], 2).')';
-                }
-                return back()->withErrors([
-                    'producto_id' => 'No hay stock suficiente para esta orden: '.implode(' | ', $faltantesStr),
-                ])->withInput();
-            }
-
-            // Crear órdenes de compra para materiales faltantes
-            $this->crearOrdenesCompra($faltantes, $request);
-        }
-
-        $orden = OrdenProduccion::create([
-            'producto_id' => $productoId,
-            'cantidad' => $cantidadObjetivo,
-            'cantidad_completada' => 0,
-            'fecha_inicio' => $data['fecha_inicio'] ?? null,
-            'fecha_esperada' => $data['fecha_esperada'] ?? null,
-            'estado_id' => $estadoPendiente->id,
-            'usuario_id' => (int) $request->session()->get('auth_user_id'),
-            'responsable_id' => (int) $data['responsable_id'],
-        ]);
-
-
-        foreach ($receta as $linea) {
-            $factorMerma = 1 + ((float) $linea->merma_porcentaje / 100);
-            $cantidadNecesaria = $cantidadObjetivo * (float) $linea->cantidad_base * $factorMerma;
-
-            UsoMaterial::updateOrCreate(
-                [
-                    'orden_produccion_id' => $orden->id,
-                    'material_id' => (int) $linea->material_id,
-                ],
-                [
-                    'cantidad_necesaria' => $cantidadNecesaria,
-                    'cantidad_usada' => 0,
-                ]
-            );
-        }
-
-        $mensaje = 'Orden de produccion creada correctamente.';
-        if (! empty($faltantes)) {
-            $mensaje .= ' Se han creado órdenes de compra para los materiales faltantes.';
-        }
-
-        return redirect()->route('produccion.index')->with('ok', $mensaje);
+        return redirect()->route('produccion.index')->with('ok', 'Orden de producción creada correctamente.');
     }
 
-    private function crearOrdenesCompra(array $faltantes, Request $request): void
+    public function registrarConsumo(Request $request): RedirectResponse
     {
-        $materialesPorProveedor = collect($faltantes)->groupBy(function ($item) {
-            return $item['material']->proveedor_id;
-        });
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion', 'editar'), 403);
 
-        DB::transaction(function () use ($materialesPorProveedor, $request): void {
-            $estadoPendiente = Estado::firstOrCreate([
-                'nombre' => 'PENDIENTE',
-                'tipo' => 'compra',
+        $data = $request->validate([
+            'orden_produccion_id' => ['required', 'integer', 'exists:ordenes_produccion,id'],
+            'material_id' => ['required', 'integer', 'exists:insumos,id'],
+            'cantidad_usada' => ['required', 'numeric', 'gt:0'],
+            'cantidad_merma' => ['nullable', 'numeric', 'gte:0'],
+            'tipo_merma' => ['nullable', 'in:Corte,Costura,Defecto,Manejo,Otro'],
+            'motivo_merma' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $orden = OrdenProduccion::query()->findOrFail((int) $data['orden_produccion_id']);
+
+        if ($this->ordenBloqueadaPorAprobacion($orden)) {
+            return back()
+                ->withErrors(['orden_produccion_id' => 'La orden tiene una etapa en Esperando Aprobacion. Debe firmarse antes de registrar consumos.'])
+                ->withInput();
+        }
+
+        $material = Insumo::query()->findOrFail((int) $data['material_id']);
+        $lote = LoteInsumo::query()
+            ->where('insumo_id', $material->id)
+            ->where('activo', true)
+            ->whereRaw('cantidad_en_stock > 0')
+            ->orderBy('fecha_recepcion')
+            ->first();
+
+        if (! $lote) {
+            return back()->withErrors(['material_id' => 'No hay lote disponible con stock para el material seleccionado.'])->withInput();
+        }
+
+        $cantidadUsada = (float) $data['cantidad_usada'];
+        $cantidadMerma = (float) ($data['cantidad_merma'] ?? 0);
+        $total = $cantidadUsada + $cantidadMerma;
+
+        if ($cantidadMerma > 0 && trim((string) ($data['motivo_merma'] ?? '')) === '') {
+            return back()->withErrors(['motivo_merma' => 'Debes capturar motivo de merma cuando exista desperdicio.'])->withInput();
+        }
+
+        if ($total > (float) $material->stock_actual) {
+            return back()->withErrors(['cantidad_usada' => 'El consumo total excede el stock actual del material.'])->withInput();
+        }
+
+        if ($total > (float) $lote->cantidadDisponible()) {
+            return back()->withErrors(['cantidad_usada' => 'El consumo total excede la disponibilidad del lote.'])->withInput();
+        }
+
+        DB::transaction(function () use ($orden, $material, $lote, $cantidadUsada, $cantidadMerma, $total, $data): void {
+            $tipoMerma = (string) ($data['tipo_merma'] ?? 'Otro');
+            $observaciones = $data['motivo_merma'] ?? null;
+
+            if ($cantidadMerma > 0) {
+                $observaciones = trim(sprintf('[%s] %s', $tipoMerma, (string) $observaciones));
+            }
+
+            ConsumoMaterial::query()->create([
+                'orden_produccion_id' => $orden->id,
+                'insumo_id' => $material->id,
+                'lote_insumo_id' => $lote->id,
+                'unidad_medida_id' => $material->unidad_medida_id,
+                'cantidad_consumida' => $cantidadUsada,
+                'cantidad_desperdicio' => $cantidadMerma,
+                'user_id' => Auth::id() ?? $orden->user_id,
+                'fecha_consumo' => now(),
+                'estado_material' => $cantidadMerma > 0 ? 'No Conforme' : 'Conforme',
+                'observaciones' => $observaciones,
+                'requiere_revision' => $cantidadMerma > 0,
+                'numero_lote_produccion' => $orden->numero_orden,
             ]);
 
-            foreach ($materialesPorProveedor as $proveedorId => $items) {
-                if (! $proveedorId) {
-                    continue;
-                }
+            $material->stock_actual = max(0, (float) $material->stock_actual - $total);
+            $material->save();
 
-                $orden = OrdenCompra::create([
-                    'proveedor_id' => (int) $proveedorId,
-                    'fecha' => now(),
-                    'fecha_esperada' => now()->addDays(7),
-                    'estado_id' => $estadoPendiente->id,
-                    'usuario_id' => (int) $request->session()->get('auth_user_id'),
-                ]);
-
-                foreach ($items as $item) {
-                    ItemCompra::create([
-                        'orden_compra_id' => $orden->id,
-                        'material_id' => $item['material']->id,
-                        'cantidad' => $item['cantidad_faltante'],
-                        'precio_unitario' => 0, // Se puede actualizar después
-                    ]);
-                }
-            }
+            $lote->cantidad_consumida = (float) $lote->cantidad_consumida + $total;
+            $lote->cantidad_en_stock = max(0, (float) $lote->cantidad_en_stock - $total);
+            $lote->save();
         });
+
+        return redirect()->route('produccion.index')->with('ok', 'Consumo de material registrado correctamente.');
     }
 
-    public function bomIndex(): View|RedirectResponse
+    public function updateEstado(Request $request, int $id): RedirectResponse
     {
-        if (! $this->canViewModule('Produccion')) {
-            return redirect()->route('dashboard')->with('error', 'No tienes permisos para ver ordenes de produccion.');
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion', 'editar'), 403);
+
+        $data = $request->validate([
+            'estado' => ['required', 'in:PENDIENTE,EN_PROCESO,FINALIZADA'],
+            'cantidad_completada' => ['nullable', 'numeric', 'gte:0'],
+            'etapa_fabricacion_actual' => ['nullable', 'in:Corte,Costura,Ensamblado,Acabado'],
+        ]);
+
+        $orden = OrdenProduccion::query()->findOrFail($id);
+
+        if ($this->ordenBloqueadaPorAprobacion($orden)) {
+            return back()->withErrors(['estado' => 'No se puede iniciar/cambiar estado mientras exista una etapa en Esperando Aprobacion.']);
         }
 
-        $canManage = $this->canManageProduccion();
+        $estado = match ($data['estado']) {
+            'EN_PROCESO' => OrdenProduccion::ESTADO_EN_PROCESO,
+            'FINALIZADA' => OrdenProduccion::ESTADO_FINALIZADA,
+            default => OrdenProduccion::ESTADO_PENDIENTE,
+        };
 
-        $recetas = RecetaMaterial::with([
-            'producto:id,nombre,sku',
-            'material:id,nombre,stock,unidad_id',
-            'material.unidad:id,nombre',
-        ])->orderByDesc('id')->get();
+        $cantidadCompletada = (float) ($data['cantidad_completada'] ?? 0);
+        $porcentaje = (float) ($orden->cantidad_produccion > 0
+            ? min(100, max(0, ($cantidadCompletada / (float) $orden->cantidad_produccion) * 100))
+            : 0);
 
-        return view('produccion.bom', [
-            'canManage' => $canManage,
-            'productos' => ProductoTerminado::orderBy('nombre')->get(['id', 'nombre', 'sku']),
-            'materiales' => Material::orderBy('nombre')->get(['id', 'nombre', 'stock', 'unidad_id']),
-            'recetas' => $recetas,
+        $orden->estado = $estado;
+        $orden->porcentaje_completado = $porcentaje;
+        if (! empty($data['etapa_fabricacion_actual'])) {
+            $orden->etapa_fabricacion_actual = (string) $data['etapa_fabricacion_actual'];
+        }
+
+        if ($estado === OrdenProduccion::ESTADO_EN_PROCESO && ! $orden->fecha_inicio_real) {
+            $orden->fecha_inicio_real = now()->toDateString();
+        }
+
+        if (OrdenProduccion::esEstadoFinalizado($estado)) {
+            $orden->porcentaje_completado = 100;
+            $orden->fecha_fin_real = now()->toDateString();
+            $orden->etapas_completadas = $orden->etapas_totales;
+            $orden->etapa_fabricacion_actual = 'Acabado';
+        }
+
+        $orden->save();
+
+        return back()->with('ok', 'Estado de la orden actualizado correctamente.');
+    }
+
+    public function updateAsignacion(Request $request, int $id): RedirectResponse
+    {
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion', 'editar'), 403);
+
+        $data = $request->validate([
+            'responsable_id' => ['required', 'integer', 'exists:users,id'],
+            'maquina_asignada' => ['nullable', 'string', 'max:120'],
+            'turno_asignado' => ['nullable', 'in:Manana,Tarde,Noche'],
         ]);
+
+        $orden = OrdenProduccion::query()->findOrFail($id);
+
+        DB::transaction(function () use ($orden, $data): void {
+            $orden->user_id = (int) $data['responsable_id'];
+            $orden->maquina_asignada = $data['maquina_asignada'] ?? null;
+            $orden->turno_asignado = $data['turno_asignado'] ?? null;
+            $orden->save();
+
+            $etapaActiva = $orden->trazabilidadEtapas()
+                ->whereIn('estado', ['Pendiente', 'En Proceso', 'Esperando Aprobacion', 'Esperando Aprobación'])
+                ->orderBy('numero_secuencia')
+                ->first();
+
+            if ($etapaActiva && ! $etapaActiva->responsable_id) {
+                $etapaActiva->responsable_id = (int) $data['responsable_id'];
+                $etapaActiva->save();
+            }
+        });
+
+        return back()->with('ok', 'Asignación de tarea actualizada correctamente.');
+    }
+
+    public function cancelar(int $id): RedirectResponse
+    {
+        abort_unless(PermisoService::canAccessModule(request()->user(), 'Produccion', 'editar'), 403);
+
+        $orden = OrdenProduccion::query()->findOrFail($id);
+        $orden->estado = OrdenProduccion::ESTADO_CANCELADA;
+        $orden->save();
+
+        return redirect()->route('produccion.index')->with('ok', 'Orden cancelada correctamente.');
+    }
+
+    public function ordenesFiltradas(Request $request): View
+    {
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion'), 403);
+
+        $canManage = $this->canManage();
+        $usuarios = User::query()
+            ->where('activo', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $usuario): object => (object) [
+                'id' => $usuario->id,
+                'nombre' => $usuario->name,
+            ]);
+
+        $query = $this->buildOrdenesQuery();
+
+        if ($request->filled('responsable_id')) {
+            $query->where('user_id', (int) $request->query('responsable_id'));
+        }
+
+        $ordenes = $query->get()->map(fn (OrdenProduccion $orden): object => $this->mapOrdenForView($orden));
+
+        return view('produccion.partials.tabla_ordenes', compact('ordenes', 'canManage', 'usuarios'));
+    }
+
+    public function bomIndex(): View
+    {
+        abort_unless(PermisoService::canAccessModule(Auth::user(), 'Produccion'), 403);
+
+        $canManage = $this->canManage();
+
+        $productos = TipoProducto::query()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn (TipoProducto $producto): object => (object) [
+                'id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'sku' => $producto->slug,
+            ]);
+
+        $materiales = Insumo::query()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn (Insumo $material): object => (object) [
+                'id' => $material->id,
+                'nombre' => $material->nombre,
+                'stock' => (float) $material->stock_actual,
+            ]);
+
+        $recetas = OrdenProduccionMaterial::query()
+            ->with(['ordenProduccion.tipoProducto:id,nombre,slug', 'insumo:id,nombre'])
+            ->orderByDesc('updated_at')
+            ->limit(300)
+            ->get()
+            ->map(function (OrdenProduccionMaterial $linea): object {
+                return (object) [
+                    'id' => $linea->id,
+                    'producto' => (object) [
+                        'nombre' => $linea->ordenProduccion?->tipoProducto?->nombre,
+                        'sku' => $linea->ordenProduccion?->tipoProducto?->slug,
+                    ],
+                    'material' => (object) [
+                        'nombre' => $linea->insumo?->nombre,
+                    ],
+                    'cantidad_base' => (float) $linea->cantidad_necesaria,
+                    'activo' => mb_strtolower((string) $linea->estado_asignacion) !== 'cancelado',
+                ];
+            });
+
+        return view('produccion.bom', compact('canManage', 'productos', 'materiales', 'recetas'));
     }
 
     public function bomStore(Request $request): RedirectResponse
     {
-        if (! $this->canManageProduccion()) {
-            return redirect()->route('produccion.bom.index')->with('error', 'No tienes permisos para gestionar ordenes de produccion.');
-        }
-
         $data = $request->validate([
-            'producto_id' => ['required', 'integer', 'exists:producto_terminado,id'],
+            'producto_id' => ['required', 'integer', 'exists:tipos_producto,id'],
             'material_id' => ['required', 'array', 'min:1'],
-            'material_id.*' => ['required', 'integer', 'exists:material,id'],
+            'material_id.*' => ['required', 'integer', 'exists:insumos,id'],
             'cantidad_base' => ['required', 'array', 'min:1'],
             'cantidad_base.*' => ['required', 'numeric', 'gt:0'],
-            'merma_porcentaje' => ['nullable', 'array'],
-            'merma_porcentaje.*' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'activo' => ['nullable', 'array'],
-            'activo.*' => ['nullable', 'boolean'],
+            'activo.*' => ['nullable', 'in:0,1'],
         ]);
 
-        $materialIds = (array) $data['material_id'];
-        $cantidades = (array) $data['cantidad_base'];
-        $mermas = $data['merma_porcentaje'] ?? [];
-        $activos = $data['activo'] ?? [];
+        $unidadId = UnidadMedida::query()->where('activo', true)->value('id')
+            ?? UnidadMedida::query()->value('id');
 
-        foreach ($materialIds as $idx => $materialId) {
-            $cantidad = $cantidades[$idx] ?? 0;
-            $merma = $mermas[$idx] ?? 0;
-            $activo = array_key_exists($idx, $activos) ? (bool) $activos[$idx] : true;
-
-            RecetaMaterial::updateOrCreate(
-                [
-                    'producto_id' => (int) $data['producto_id'],
-                    'material_id' => (int) $materialId,
-                ],
-                [
-                    'cantidad_base' => (float) $cantidad,
-                    'merma_porcentaje' => (float) $merma,
-                    'activo' => $activo,
-                ]
-            );
+        if (! $unidadId) {
+            return back()->withErrors(['producto_id' => 'No existe unidad de medida para registrar BOM.'])->withInput();
         }
 
-        return redirect()->route('produccion.bom.index')
-            ->with('ok', 'Linea de materiales guardada correctamente.')
-            ->withInput($request->only('producto_id'));
-    }
+        DB::transaction(function () use ($data, $unidadId): void {
+            $ordenBase = OrdenProduccion::query()
+                ->where('tipo_producto_id', (int) $data['producto_id'])
+                ->whereIn('estado', ['Pendiente', 'En Proceso'])
+                ->orderByDesc('id')
+                ->first();
 
-    public function updateEstado(Request $request, OrdenProduccion $ordenProduccion): RedirectResponse
-    {
-        if (! $this->canManageProduccion()) {
-            return redirect()->route('produccion.index')->with('error', 'No tienes permisos para actualizar estados de produccion.');
-        }
-
-        $data = $request->validate([
-            'estado' => ['required', 'in:PENDIENTE,EN_PROCESO,FINALIZADA'],
-            'cantidad_completada' => ['nullable', 'numeric', 'min:0'],
-        ]);
-
-        $estado = Estado::firstOrCreate([
-            'nombre' => $data['estado'],
-            'tipo' => 'produccion',
-        ]);
-
-        $payload = [
-            'estado_id' => $estado->id,
-        ];
-
-        if (array_key_exists('cantidad_completada', $data) && $data['cantidad_completada'] !== null) {
-            $payload['cantidad_completada'] = min((float) $data['cantidad_completada'], (float) $ordenProduccion->cantidad);
-        }
-
-        $ordenProduccion->update($payload);
-
-
-        return redirect()->route('produccion.index')->with('ok', 'Estado de la orden actualizado.');
-    }
-
-    public function registrarConsumo(Request $request): RedirectResponse|JsonResponse
-    {
-        if (! $this->canManageProduccion()) {
-            return redirect()->route('produccion.index')->with('error', 'No tienes permisos para registrar consumo de materiales.');
-        }
-
-        $data = $request->validate([
-            'orden_produccion_id' => ['required', 'integer', 'exists:orden_produccion,id'],
-            'material_id' => ['required', 'integer', 'exists:material,id'],
-            'cantidad_usada' => ['required', 'numeric', 'gt:0'],
-            'cantidad_necesaria' => ['nullable', 'numeric', 'gt:0'],
-            'cantidad_merma' => ['nullable', 'numeric', 'min:0'],
-            'motivo_merma' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        DB::transaction(function () use ($data): void {
-            $material = Material::lockForUpdate()->findOrFail((int) $data['material_id']);
-            $cantidadUsada = (float) $data['cantidad_usada'];
-            $cantidadMerma = array_key_exists('cantidad_merma', $data) && $data['cantidad_merma'] !== null
-                ? (float) $data['cantidad_merma']
-                : 0.0;
-
-            if ($cantidadMerma > 0 && trim((string) ($data['motivo_merma'] ?? '')) === '') {
-                throw ValidationException::withMessages([
-                    'motivo_merma' => 'Debes indicar un motivo cuando registras merma.',
+            if (! $ordenBase) {
+                $ordenBase = OrdenProduccion::query()->create([
+                    'tipo_producto_id' => (int) $data['producto_id'],
+                    'user_id' => Auth::id() ?? User::query()->value('id'),
+                    'fecha_orden' => now(),
+                    'fecha_inicio_prevista' => now()->toDateString(),
+                    'fecha_fin_prevista' => now()->addDay()->toDateString(),
+                    'cantidad_produccion' => 1,
+                    'unidad_medida_id' => (int) $unidadId,
+                    'estado' => 'Pendiente',
+                    'notas' => 'Orden base generada para gestión BOM.',
+                    'prioridad' => 'Normal',
+                    'requiere_calidad' => true,
+                    'etapas_totales' => 0,
+                    'etapas_completadas' => 0,
+                    'porcentaje_completado' => 0,
                 ]);
             }
 
-            $cantidadSalidaTotal = $cantidadUsada + $cantidadMerma;
+            foreach ($data['material_id'] as $i => $materialId) {
+                $insumo = Insumo::query()->find((int) $materialId);
 
-            if ((float) $material->stock < $cantidadSalidaTotal) {
-                throw ValidationException::withMessages([
-                    'cantidad_usada' => 'Stock insuficiente para registrar consumo y merma.',
-                ]);
+                if (! $insumo) {
+                    continue;
+                }
+
+                $cantidadBase = (float) ($data['cantidad_base'][$i] ?? 0);
+                $isActivo = (string) ($data['activo'][$i] ?? '1') === '1';
+
+                $linea = OrdenProduccionMaterial::query()
+                    ->where('orden_produccion_id', $ordenBase->id)
+                    ->where('insumo_id', $insumo->id)
+                    ->first();
+
+                if ($linea) {
+                    $linea->update([
+                        'unidad_medida_id' => (int) $insumo->unidad_medida_id,
+                        'cantidad_necesaria' => $cantidadBase,
+                        'estado_asignacion' => $isActivo ? 'Asignado' : 'Pendiente',
+                        'notas_asignacion' => 'Actualizado desde BOM.',
+                    ]);
+                } else {
+                    OrdenProduccionMaterial::query()->create([
+                        'orden_produccion_id' => $ordenBase->id,
+                        'insumo_id' => $insumo->id,
+                        'unidad_medida_id' => (int) $insumo->unidad_medida_id,
+                        'cantidad_necesaria' => $cantidadBase,
+                        'cantidad_utilizada' => 0,
+                        'cantidad_desperdicio' => 0,
+                        'estado_asignacion' => $isActivo ? 'Asignado' : 'Pendiente',
+                        'notas_asignacion' => 'Creado desde BOM.',
+                        'numero_linea' => $i + 1,
+                    ]);
+                }
             }
-
-            $usoMaterial = UsoMaterial::lockForUpdate()->firstOrNew([
-                'orden_produccion_id' => (int) $data['orden_produccion_id'],
-                'material_id' => (int) $data['material_id'],
-            ]);
-
-            $usoActual = (float) ($usoMaterial->cantidad_usada ?? 0);
-            $mermaActual = (float) ($usoMaterial->cantidad_merma ?? 0);
-            $necesariaActual = (float) ($usoMaterial->cantidad_necesaria ?? 0);
-            $nuevaUsada = $usoActual + $cantidadUsada;
-            $nuevaMerma = $mermaActual + $cantidadMerma;
-
-            $necesariaInput = array_key_exists('cantidad_necesaria', $data) && $data['cantidad_necesaria'] !== null
-                ? (float) $data['cantidad_necesaria']
-                : 0;
-
-            $nuevaNecesaria = max($necesariaActual, $necesariaInput, $nuevaUsada + $nuevaMerma);
-
-            $usoMaterial->cantidad_necesaria = $nuevaNecesaria;
-            $usoMaterial->cantidad_usada = $nuevaUsada;
-            $usoMaterial->cantidad_merma = $nuevaMerma;
-
-            if ($cantidadMerma > 0) {
-                $usoMaterial->motivo_merma = trim((string) ($data['motivo_merma'] ?? ''));
-            }
-
-            $usoMaterial->save();
-
-            $material->stock = (float) $material->stock - $cantidadSalidaTotal;
-            $material->save();
         });
 
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Consumo y merma registrados. Stock actualizado.'
-            ]);
+        return redirect()->route('produccion.bom.index')->with('ok', 'Líneas de BOM guardadas correctamente.');
+    }
+
+    private function canManage(): bool
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return false;
         }
 
-        return redirect()->route('produccion.index')->with('ok', 'Consumo y merma registrados. Stock actualizado.');
+        $rol = mb_strtolower((string) ($user->role?->slug ?: $user->role?->nombre ?: ''));
+
+        return in_array($rol, ['admin', 'super_admin', 'super-admin', 'super administrador', 'almacen', 'almacén'], true)
+            || $user->canCustom('Produccion', 'crear');
     }
 
-    private function canManageProduccion(): bool
+    private function buildOrdenesQuery()
     {
-        return $this->canEditModule('Produccion');
+        return OrdenProduccion::query()
+            ->with([
+                'tipoProducto:id,nombre,slug',
+                'user:id,name',
+                'consumosMateriales.insumo:id,nombre',
+                'trazabilidadEtapas:id,orden_produccion_id,etapa_plantilla_id,numero_secuencia,estado',
+                'trazabilidadEtapas.etapaPlantilla:id,nombre',
+            ])
+            ->orderByDesc('updated_at')
+            ->limit(150);
     }
 
+    private function mapOrdenForView(OrdenProduccion $orden): object
+    {
+        $estado = match (mb_strtolower((string) $orden->estado)) {
+            'en proceso' => 'EN_PROCESO',
+            'completada' => 'FINALIZADA',
+            'finalizada' => 'FINALIZADA',
+            'cancelada' => 'CANCELADA',
+            default => 'PENDIENTE',
+        };
+
+        $cantidad = (float) $orden->cantidad_produccion;
+        $cantidadCompletada = round($cantidad * ((float) $orden->porcentaje_completado / 100), 4);
+
+        $usosMaterial = $orden->consumosMateriales
+            ->map(fn (ConsumoMaterial $uso): object => (object) [
+                'material' => (object) ['nombre' => $uso->insumo?->nombre],
+                'cantidad_usada' => (float) $uso->cantidad_consumida,
+                'cantidad_merma' => (float) $uso->cantidad_desperdicio,
+            ]);
+
+        $etapaPendienteAprobacion = $orden->trazabilidadEtapas
+            ->first(fn ($etapa): bool => in_array($etapa->estado, ['Esperando Aprobacion', 'Esperando Aprobación'], true));
+
+        $bloqueadaAprobacion = $etapaPendienteAprobacion !== null;
+
+        $nombreEtapaPendiente = $etapaPendienteAprobacion
+            ? ($etapaPendienteAprobacion->etapaPlantilla?->nombre ?? ('Etapa #' . $etapaPendienteAprobacion->numero_secuencia))
+            : null;
+
+        return (object) [
+            'id' => $orden->id,
+            'producto' => (object) [
+                'nombre' => $orden->tipoProducto?->nombre,
+                'sku' => $orden->tipoProducto?->slug,
+            ],
+            'cantidad' => $cantidad,
+            'cantidad_completada' => $cantidadCompletada,
+            'estado' => (object) ['nombre' => $estado],
+            'etapa_fabricacion_actual' => (string) ($orden->etapa_fabricacion_actual ?: 'Corte'),
+            'responsable' => (object) [
+                'id' => $orden->user?->id,
+                'nombre' => $orden->user?->name,
+            ],
+            'maquina_asignada' => $orden->maquina_asignada,
+            'turno_asignado' => $orden->turno_asignado,
+            'fecha_inicio' => $orden->fecha_inicio_prevista,
+            'fecha_esperada' => $orden->fecha_fin_prevista,
+            'usosMaterial' => $usosMaterial,
+            'merma_total' => round((float) $orden->consumosMateriales->sum('cantidad_desperdicio'), 4),
+            'merma_porcentaje' => $this->calcularMermaPorcentajeOrden($orden),
+            'bloqueada_aprobacion' => $bloqueadaAprobacion,
+            'etapa_pendiente_aprobacion' => $nombreEtapaPendiente,
+        ];
+    }
+
+    private function ordenBloqueadaPorAprobacion(OrdenProduccion $orden): bool
+    {
+        return $orden->trazabilidadEtapas()
+            ->whereIn('estado', ['Esperando Aprobacion', 'Esperando Aprobación'])
+            ->exists();
+    }
+
+    private function calcularMermaPorcentajeOrden(OrdenProduccion $orden): float
+    {
+        $desperdicio = (float) $orden->consumosMateriales->sum('cantidad_desperdicio');
+        $consumo = (float) $orden->consumosMateriales->sum('cantidad_consumida');
+        $total = $desperdicio + $consumo;
+
+        if ($total <= 0) {
+            return 0;
+        }
+
+        return round(($desperdicio / $total) * 100, 2);
+    }
 }

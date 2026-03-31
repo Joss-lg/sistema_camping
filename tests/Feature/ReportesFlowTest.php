@@ -2,49 +2,33 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use App\Models\Permission;
+use App\Models\ReporteGenerado;
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ReportesFlowTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
-    public function test_authenticated_user_can_view_reportes_and_export_csv(): void
+    public function test_authenticated_user_can_view_reportes_with_current_schema(): void
     {
-        if (! Schema::hasTable('estado') || ! Schema::hasTable('usuario')) {
-            $this->markTestSkipped('El entorno de pruebas no tiene el esquema base cargado.');
-        }
+        $user = $this->crearUsuarioConPermisoReportes();
 
-        $estadoId = DB::table('estado')->insertGetId([
-            'nombre' => 'Activo',
-            'tipo' => 'general',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $response = $this->actingAs($user)->get(route('reportes.index'));
 
-        $usuarioId = DB::table('usuario')->insertGetId([
-            'nombre' => 'Usuario Reportes',
-            'email' => 'reportes-user@example.test',
-            'password' => bcrypt('secret123'),
-            'rol' => 'ADMIN',
-            'estado_id' => $estadoId,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $response->assertOk();
+        $response->assertSeeText('Reportes y');
+        $response->assertSeeText('Aplicar filtros');
+    }
 
-        $session = [
-            'auth_user_id' => $usuarioId,
-            'auth_user_rol' => 'ADMIN',
-            'auth_user_nombre' => 'Usuario Reportes',
-        ];
+    public function test_csv_export_creates_reporte_generado_and_uses_valid_headers(): void
+    {
+        $user = $this->crearUsuarioConPermisoReportes();
 
-        $responseView = $this->withSession($session)->get(route('reportes.index'));
-        $responseView->assertOk();
-        $responseView->assertSeeText('Reportes');
-
-        $responseCsv = $this->withSession($session)->get(route('reportes.export.csv', [
+        $responseCsv = $this->actingAs($user)->get(route('reportes.export.csv', [
             'type' => 'entregas',
             'from' => now()->subDays(7)->toDateString(),
             'to' => now()->toDateString(),
@@ -52,5 +36,69 @@ class ReportesFlowTest extends TestCase
 
         $responseCsv->assertOk();
         $responseCsv->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $responseCsv->assertHeader('content-disposition');
+        $this->assertStringContainsString('id,fecha_entrega,proveedor,material,cantidad,calidad', $responseCsv->getContent());
+
+        $this->assertDatabaseHas('reportes_generados', [
+            'tipo_reporte' => 'entregas',
+            'formato' => 'csv',
+            'estado' => 'Descargado',
+            'generado_por_user_id' => $user->id,
+        ]);
+
+        $registro = ReporteGenerado::query()->latest('id')->first();
+        $this->assertNotNull($registro);
+        $this->assertNotNull($registro->expiracion_at);
+        $this->assertIsArray($registro->parametros);
+        $this->assertSame('entregas', $registro->parametros['type'] ?? null);
+    }
+
+    public function test_csv_export_swaps_invalid_range_order_in_stored_params(): void
+    {
+        $user = $this->crearUsuarioConPermisoReportes();
+
+        $from = now()->toDateString();
+        $to = now()->subDays(3)->toDateString();
+
+        $responseCsv = $this->actingAs($user)->get(route('reportes.export.csv', [
+            'type' => 'entregas',
+            'from' => $from,
+            'to' => $to,
+        ]));
+
+        $responseCsv->assertOk();
+
+        $registro = ReporteGenerado::query()->latest('id')->first();
+        $this->assertNotNull($registro);
+        $this->assertSame($to, $registro->fecha_desde?->toDateString());
+        $this->assertSame($from, $registro->fecha_hasta?->toDateString());
+    }
+
+    private function crearUsuarioConPermisoReportes(): User
+    {
+        $role = Role::query()->create([
+            'nombre' => 'Supervisor Reportes',
+            'slug' => 'supervisor-reportes',
+            'nivel_acceso' => 60,
+        ]);
+
+        Permission::query()->create([
+            'role_id' => $role->id,
+            'modulo' => 'Reportes',
+            'puede_ver' => true,
+            'puede_crear' => true,
+            'puede_editar' => true,
+            'puede_eliminar' => false,
+            'puede_aprobar' => false,
+        ]);
+
+        return User::query()->create([
+            'name' => 'Usuario Reportes',
+            'email' => 'reportes-user@example.test',
+            'password' => 'secret123',
+            'role_id' => $role->id,
+            'activo' => true,
+            'departamento' => 'administracion',
+        ]);
     }
 }

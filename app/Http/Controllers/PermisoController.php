@@ -1,211 +1,207 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use App\Models\Estado;
-use App\Models\Usuario;
-use App\Models\UsuarioPermiso;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Services\PermisoService;
-use App\Models\Proveedor;
 
 class PermisoController extends Controller
 {
-    public function index(): View|RedirectResponse
+    public function index(Request $request): View
     {
-        if (! $this->canViewModule('Crear usuarios y otorgar permisos')) {
-            return redirect()->route('dashboard')->with('error', 'No tienes permisos para ver este modulo.');
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos'), 403);
+
+        $rolFiltro = strtoupper((string) $request->query('rol', '')) ?: null;
+
+        $modulos = Permission::query()
+            ->select('modulo')
+            ->distinct()
+            ->orderBy('modulo')
+            ->pluck('modulo')
+            ->values()
+            ->all();
+
+        $modulos = collect(array_merge(PermisoService::modulosDisponibles(), $modulos))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $permisosPredeterminados = PermisoService::getPermisosPredeterminados();
+        $rolesDisponibles = Role::query()
+            ->orderBy('id')
+            ->get(['nombre', 'slug'])
+            ->map(fn (Role $role): string => PermisoService::normalizeRoleKey((string) ($role->slug ?: $role->nombre)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($rolesDisponibles)) {
+            $rolesDisponibles = array_keys($permisosPredeterminados);
         }
 
-        $rolFiltro = request('rol');
-
-        $usuarios = Usuario::with('permisos', 'estado')
-            ->when($rolFiltro, function($query) use ($rolFiltro) {
-                $query->where('rol', $rolFiltro);
-            })
-            ->orderByDesc('id')
+        $usuarios = User::query()
+            ->with(['role:id,nombre,slug'])
+            ->orderBy('name')
             ->get();
 
-        $registros = $usuarios->map(function($usuario) {
-            return [
-                'id' => $usuario->id,
-                'nombre' => $usuario->nombre,
-                'email' => $usuario->email,
-                'rol' => $usuario->rol,
-                'estado' => $usuario->estado->nombre ?? 'Desconocido',
-                'permisos' => $usuario->permisos->map(function($p) {
-                    return ['modulo' => $p->modulo, 'puede_editar' => $p->puede_editar];
-                })
-            ];
-        });
+        $registrosUsuarios = $usuarios
+            ->map(function (User $user): array {
+                $rol = PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: ($user->role?->nombre ?? 'SIN_ROL')));
 
-        return view('permisos.index', [
-            'modulos' => $this->modulosDisponibles(),
-            'registros' => $registros,
-            'permisosPredeterminados' => PermisoService::getPermisosPredeterminados(),
-            'rolFiltro' => $rolFiltro,
-        ]);
+                $permisos = Permission::query()
+                    ->where('role_id', $user->role_id)
+                    ->orderBy('modulo')
+                    ->get(['modulo', 'puede_editar'])
+                    ->map(fn (Permission $perm): array => [
+                        'modulo' => $perm->modulo,
+                        'puede_editar' => (bool) $perm->puede_editar,
+                    ])
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => $user->id,
+                    'nombre' => $user->name,
+                    'email' => $user->email,
+                    'rol' => $rol,
+                    'estado' => $user->activo ? 'Activo' : 'Inactivo',
+                    'permisos' => $permisos,
+                ];
+            });
+        $registros = $registrosUsuarios
+            ->sortBy([
+                ['rol', 'asc'],
+                ['nombre', 'asc'],
+            ])
+            ->when($rolFiltro, fn ($collection) => $collection->where('rol', $rolFiltro))
+            ->values()
+            ->all();
+
+        return view('permisos.index', compact('modulos', 'registros', 'rolFiltro', 'permisosPredeterminados', 'rolesDisponibles'));
     }
 
     public function store(Request $request): RedirectResponse
     {
-        if (! $this->canEditModule('Crear usuarios y otorgar permisos')) {
-            return redirect()->route('permisos.index')->with('error', 'No tienes permisos para crear usuarios.');
-        }
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
 
         $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:150', 'unique:usuario,email'],
+            'nombre' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6', 'confirmed'],
-            'rol' => ['required', 'in:ADMIN,ALMACEN,PROVEEDOR'],
-            'modulos' => ['sometimes', 'array'],
-            'puede_editar' => ['sometimes', 'array'],
+            'rol' => ['required', 'string', 'max:100'],
+            'modulos' => ['nullable', 'array'],
+            'modulos.*' => ['string', 'max:100'],
+            'puede_editar' => ['nullable', 'array'],
+            'puede_editar.*' => ['string', 'max:100'],
         ]);
 
-        $estado = Estado::firstOrCreate(['nombre' => 'Activo', 'tipo' => 'general']);
+        $role = PermisoService::resolveRoleByInput((string) $data['rol']);
 
-        DB::transaction(function () use ($data, $estado) {
-            $usuario = Usuario::create([
-                'nombre' => $data['nombre'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-                'rol' => $data['rol'],
-                'estado_id' => $estado->id,
-            ]);
+        if (! $role) {
+            $role = Role::query()->orderBy('id')->first();
+        }
 
-            // Asignar permisos predeterminados basados en el rol
-            PermisoService::asignarPermisosPredeterminados($usuario);
+        if (! $role) {
+            return back()->withErrors(['rol' => 'No hay roles disponibles para asignar.'])->withInput();
+        }
 
-            // Luego, aplicar los permisos seleccionados manualmente
-            if (!empty($data['modulos'])) {
-                foreach ($data['modulos'] as $modulo) {
-                    UsuarioPermiso::updateOrCreate(
-                        ['usuario_id' => $usuario->id, 'modulo' => $modulo],
-                        [
-                            'puede_ver' => true,
-                            'puede_editar' => in_array($modulo, $data['puede_editar'] ?? []),
-                        ]
-                    );
-                }
-            }
-        });
+        User::query()->create([
+            'name' => $data['nombre'],
+            'email' => $data['email'],
+            'password' => $data['password'],
+            'role_id' => $role->id,
+            'activo' => true,
+        ]);
 
-        return redirect()->route('permisos.index')->with('ok', 'Usuario creado correctamente.');
+        PermisoService::syncRolePermissions($role, $data['modulos'] ?? null, $data['puede_editar'] ?? null);
+
+        return redirect()->route('permisos.index')->with('ok', 'Usuario creado correctamente desde el módulo de permisos.');
     }
 
-    public function update(Request $request, $id): RedirectResponse
+    public function toggleEstado(int $id): RedirectResponse
     {
-        // CORRECCIÓN: Buscamos manualmente para evitar el 404 del Route Model Binding
-        $usuario = Usuario::findOrFail($id);
+        abort_unless(PermisoService::canAccessModule(request()->user(), 'Permisos', 'editar'), 403);
 
-        if (! $this->canEditModule('Crear usuarios y otorgar permisos')) {
-            return redirect()->route('permisos.index')->with('error', 'No tienes permisos.');
-        }
+        $user = User::query()->findOrFail($id);
+        $user->activo = ! $user->activo;
+        $user->save();
+
+        return back()->with('ok', 'Estado de usuario actualizado correctamente.');
+    }
+
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
+
+        $user = User::query()->findOrFail($id);
 
         $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:150', Rule::unique('usuario', 'email')->ignore($usuario->id)],
+            'nombre' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'rol' => ['required', 'string', 'max:100'],
             'password' => ['nullable', 'string', 'min:6', 'confirmed'],
-            'rol' => ['required', 'in:ADMIN,ALMACEN,PROVEEDOR'],
-            'modulos' => ['sometimes', 'array'],
-            'puede_editar' => ['sometimes', 'array'],
+            'modulos' => ['nullable', 'array'],
+            'modulos.*' => ['string', 'max:100'],
+            'puede_editar' => ['nullable', 'array'],
+            'puede_editar.*' => ['string', 'max:100'],
         ]);
 
-        DB::transaction(function () use ($data, $usuario) {
+        $role = PermisoService::resolveRoleByInput((string) $data['rol']);
+
+        if (! $role) {
+            return back()->withErrors(['rol' => 'Rol no encontrado.'])->withInput();
+        }
+
+        DB::transaction(function () use ($user, $data, $role): void {
             $payload = [
-                'nombre' => $data['nombre'],
+                'name' => $data['nombre'],
                 'email' => $data['email'],
-                'rol' => $data['rol'],
+                'role_id' => $role->id,
             ];
 
-            if (!empty($data['password'])) {
-                $payload['password'] = Hash::make($data['password']);
+            if (! empty($data['password'])) {
+                $payload['password'] = $data['password'];
             }
 
-            $usuario->update($payload);
+            $user->update($payload);
 
-            // Sincronizar permisos
-            UsuarioPermiso::where('usuario_id', $usuario->id)->delete();
-            if (!empty($data['modulos'])) {
-                foreach ($data['modulos'] as $modulo) {
-                    UsuarioPermiso::create([
-                        'usuario_id' => $usuario->id,
-                        'modulo' => $modulo,
-                        'puede_ver' => true,
-                        'puede_editar' => in_array($modulo, $data['puede_editar'] ?? []),
-                    ]);
-                }
-            }
+            PermisoService::syncRolePermissions($role, $data['modulos'] ?? null, $data['puede_editar'] ?? null);
         });
 
         return redirect()->route('permisos.index')->with('ok', 'Usuario actualizado correctamente.');
     }
 
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, int $id)
     {
-        if (! $this->canEditModule('Crear usuarios y otorgar permisos')) {
-            $message = 'No tienes permisos para eliminar usuarios.';
-            if ($request->expectsJson()) {
-                return response()->json(['error' => $message], 403);
-            }
-            return redirect()->route('permisos.index')->with('error', $message);
-        }
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
 
-        try {
-            $usuario = Usuario::findOrFail($id);
+        $user = User::query()->findOrFail($id);
 
-            DB::transaction(function () use ($usuario) {
-                // Eliminar permisos asociados
-                UsuarioPermiso::where('usuario_id', $usuario->id)->delete();
-                // Eliminar el usuario
-                $usuario->delete();
-            });
+        if ((int) $user->id === (int) (Auth::id() ?? 0)) {
+            $message = 'No puedes eliminar tu propia cuenta.';
 
             if ($request->expectsJson()) {
-                return response()->json(['success' => true, 'message' => 'Usuario eliminado correctamente.']);
+                return response()->json(['ok' => false, 'message' => $message], 422);
             }
 
-            return redirect()->route('permisos.index')->with('ok', 'Usuario eliminado correctamente.');
-        } catch (\Exception $e) {
-            $message = 'Error al eliminar el usuario.';
-            if ($request->expectsJson()) {
-                return response()->json(['error' => $message, 'details' => $e->getMessage()], 500);
-            }
-            return redirect()->route('permisos.index')->with('error', $message);
-        }
-    }
-
-    private function modulosDisponibles(): array {
-        return ['Dashboard','Proveedores','Compras','Insumos','Produccion','Terminados','Trazabilidad','Reportes','Crear usuarios y otorgar permisos'];
-    }
-
-    public function toggleEstado(Request $request, $id): RedirectResponse
-    {
-        if (! $this->canEditModule('Crear usuarios y otorgar permisos')) {
-            return redirect()->route('permisos.index')->with('error', 'No tienes permisos.');
+            return back()->withErrors(['usuario' => $message]);
         }
 
-        $usuario = Usuario::findOrFail($id);
+        $user->delete();
 
-        $activo = Estado::firstOrCreate(['nombre' => 'Activo', 'tipo' => 'general']);
-        $inactivo = Estado::firstOrCreate(['nombre' => 'Inactivo', 'tipo' => 'general']);
-
-        $nuevoEstadoId = ($usuario->estado_id == $activo->id) ? $inactivo->id : $activo->id;
-
-        $usuario->update(['estado_id' => $nuevoEstadoId]);
-
-        // Si es PROVEEDOR, también cambiar el estado del proveedor
-        if ($usuario->rol == 'PROVEEDOR') {
-            $proveedor = Proveedor::where('email', $usuario->email)->first();
-            if ($proveedor) {
-                $proveedor->update(['estado_id' => $nuevoEstadoId]);
-            }
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
         }
 
-        return redirect()->back()->with('ok', 'Estado del usuario actualizado correctamente.');
+        return redirect()->route('permisos.index')->with('ok', 'Usuario eliminado correctamente.');
     }
 }
