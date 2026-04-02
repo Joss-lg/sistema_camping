@@ -37,7 +37,7 @@ class Insumo extends Model
     ];
 
     protected $casts = [
-        'especificaciones_tecnicas' => 'array',
+        'especificaciones_tecnicas' => 'string',
         'stock_minimo' => 'decimal:4',
         'stock_actual' => 'decimal:4',
         'stock_reservado' => 'decimal:4',

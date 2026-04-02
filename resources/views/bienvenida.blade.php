@@ -59,7 +59,7 @@
 
     <footer class="bg-gray-800 text-white py-6 z-10 bg-opacity-90 w-full absolute bottom-0 left-0">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <p class="text-gray-300">&copy; 2026 LogiCamp. Todos los derechos reservados.</p>
+            <p class="text-gray-300">&copy; 2026 LogiCamp.</p>
         </div>
     </footer>
 </div>

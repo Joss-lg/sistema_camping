@@ -1,3 +1,250 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+	body {
+		@apply bg-slate-100 text-slate-900;
+		background-image:
+			radial-gradient(circle at top left, rgba(16, 185, 129, 0.08), transparent 28%),
+			radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 22%),
+			linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.96));
+		background-attachment: fixed;
+	}
+
+	::selection {
+		@apply bg-emerald-200 text-slate-900;
+	}
+}
+
+@layer components {
+	.lc-scrollbar {
+		scrollbar-width: thin;
+		scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+	}
+
+	.lc-scrollbar::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+
+	.lc-scrollbar::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.lc-scrollbar::-webkit-scrollbar-thumb {
+		background-color: rgba(100, 116, 139, 0.45);
+		border-radius: 9999px;
+	}
+
+	.lc-shell {
+		@apply rounded-[28px] border border-white/70 bg-white/90 shadow-[0_22px_60px_-28px_rgba(15,23,42,0.35)] backdrop-blur-xl;
+	}
+
+	.lc-page {
+		@apply space-y-8;
+	}
+
+	.lc-page-header {
+		@apply flex flex-col gap-3 border-b border-slate-200/80 pb-5 lg:flex-row lg:items-end lg:justify-between;
+	}
+
+	.lc-kicker {
+		@apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700;
+	}
+
+	.lc-title {
+		@apply text-3xl font-black tracking-tight text-slate-900 sm:text-4xl;
+	}
+
+	.lc-subtitle {
+		@apply max-w-3xl text-sm leading-6 text-slate-600 sm:text-base;
+	}
+
+	.lc-card {
+		@apply rounded-2xl border border-slate-200/90 bg-white shadow-sm shadow-slate-200/70;
+	}
+
+	.lc-card-muted {
+		@apply rounded-2xl border border-slate-200/70 bg-slate-50/85 shadow-sm shadow-slate-200/60;
+	}
+
+	.lc-card-header {
+		@apply flex items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-4;
+	}
+
+	.lc-card-body {
+		@apply p-5;
+	}
+
+	.lc-toolbar {
+		@apply flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-sm shadow-slate-200/60 lg:flex-row lg:items-center lg:justify-between;
+	}
+
+	.lc-toolbar-form {
+		@apply grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5;
+	}
+
+	.lc-stat-card {
+		@apply relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/70 transition duration-200 hover:-translate-y-0.5 hover:shadow-md;
+	}
+
+	.lc-stat-card::after {
+		content: '';
+		@apply absolute inset-x-0 top-0 h-1 rounded-full bg-gradient-to-r from-emerald-400 via-sky-400 to-transparent opacity-80;
+	}
+
+	.lc-stat-label {
+		@apply text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500;
+	}
+
+	.lc-stat-value {
+		@apply mt-3 text-3xl font-black tracking-tight text-slate-900;
+	}
+
+	.lc-section-title {
+		@apply text-lg font-bold tracking-tight text-slate-900;
+	}
+
+	.lc-section-subtitle {
+		@apply mt-1 text-sm text-slate-500;
+	}
+
+	.lc-badge {
+		@apply inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em];
+	}
+
+	.lc-badge-neutral {
+		@apply border-slate-200 bg-slate-100 text-slate-700;
+	}
+
+	.lc-badge-success {
+		@apply border-emerald-200 bg-emerald-50 text-emerald-700;
+	}
+
+	.lc-badge-warning {
+		@apply border-amber-200 bg-amber-50 text-amber-700;
+	}
+
+	.lc-btn-primary {
+		@apply inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-900/20 transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2;
+	}
+
+	.lc-btn-secondary {
+		@apply inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2;
+	}
+
+	.lc-btn-danger {
+		@apply inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2;
+	}
+
+	.lc-field {
+		@apply flex flex-col gap-1.5;
+	}
+
+	.lc-label {
+		@apply text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500;
+	}
+
+	.lc-input,
+	.lc-select,
+	.lc-textarea {
+		@apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100;
+	}
+
+	.lc-input-soft {
+		@apply border-slate-200 bg-slate-50/90 focus:border-sky-400 focus:ring-sky-100;
+	}
+
+	.lc-input-highlight {
+		@apply border-emerald-200 bg-emerald-50/70 focus:border-emerald-400 focus:ring-emerald-100;
+	}
+
+	.lc-input-warning {
+		@apply border-amber-200 bg-amber-50/70 focus:border-amber-400 focus:ring-amber-100;
+	}
+
+	.lc-help {
+		@apply text-xs leading-5 text-slate-500;
+	}
+
+	.lc-alert {
+		@apply rounded-2xl border px-4 py-3 shadow-sm;
+	}
+
+	.lc-alert-danger {
+		@apply border-red-200 bg-red-50 text-red-800;
+	}
+
+	.lc-alert-success {
+		@apply border-green-200 bg-green-50 text-green-800;
+	}
+
+	.lc-alert-warning {
+		@apply border-amber-200 bg-amber-50 text-amber-800;
+	}
+
+	.lc-alert-info {
+		@apply border-sky-200 bg-sky-50 text-sky-800;
+	}
+
+	.lc-empty-state {
+		@apply flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-12 text-center;
+	}
+
+	.lc-empty-icon {
+		@apply flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-300 shadow-sm shadow-slate-200/70;
+	}
+
+	.lc-empty-title {
+		@apply text-base font-semibold tracking-tight text-slate-700;
+	}
+
+	.lc-empty-copy {
+		@apply max-w-md text-sm leading-6 text-slate-500;
+	}
+
+	.lc-table-wrap {
+		@apply w-full overflow-x-auto;
+	}
+
+	.lc-table {
+		@apply w-full min-w-full border-separate border-spacing-0 text-left text-sm;
+	}
+
+	.lc-table thead th {
+		@apply sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur;
+	}
+
+	.lc-table tbody td {
+		@apply border-b border-slate-100 px-4 py-3 align-top text-slate-700;
+	}
+
+	.lc-table tbody tr {
+		@apply transition-colors hover:bg-slate-50/80;
+	}
+
+	.lc-table-actions {
+		@apply flex items-center justify-end gap-2;
+	}
+
+	.lc-icon-btn {
+		@apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm shadow-slate-200/70 transition hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-800;
+	}
+
+	.lc-icon-btn-danger {
+		@apply hover:border-red-200 hover:bg-red-50 hover:text-red-600;
+	}
+
+	.lc-icon-btn-warning {
+		@apply hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700;
+	}
+
+	.lc-icon-btn-info {
+		@apply hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700;
+	}
+
+	.lc-pagination-shell {
+		@apply border-t border-slate-200/80 bg-slate-50/80 px-4 py-3;
+	}
+}

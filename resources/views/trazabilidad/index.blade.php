@@ -1,32 +1,33 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-8">
+<div class="lc-page">
     {{-- Header de Sección --}}
-    <div class="mb-8">
-        <div class="flex items-center gap-3 mb-2">
-            
-            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">3. Trazabilidad de Producto Terminado</h1>
-        </div>
-        <p class="text-slate-500 max-w-3xl">
-            Consulta el historial completo de cada producto terminado. Desde su creación en producción hasta su ingreso en almacén, permitiendo auditar cada movimiento y responsable.
+    <div class="lc-page-header">
+        <div>
+            <div class="lc-kicker">Auditoria operacional</div>
+            <h1 class="lc-title mt-2">3. Trazabilidad de Producción</h1>
+        <p class="lc-subtitle mt-3 max-w-3xl">
+            Consulta el historial completo de cada orden, desde su creación en producción hasta la aprobación del producto terminado, permitiendo auditar cada movimiento y responsable.
         </p>
+        </div>
+        <div class="lc-badge lc-badge-neutral">Consulta historica</div>
     </div>
 
     {{-- Stats Rápidas --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <article class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center justify-between">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <article class="lc-stat-card flex items-center justify-between">
             <div>
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Total Productos Terminados</p>
+                <p class="lc-stat-label">Total órdenes monitoreadas</p>
                 <p class="text-3xl font-black text-slate-800">{{ $statsProductos }}</p>
             </div>
             <div class="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
             </div>
         </article>
-        <article class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center justify-between">
+        <article class="lc-stat-card flex items-center justify-between">
             <div>
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Movimientos Registrados</p>
+                <p class="lc-stat-label">Movimientos registrados</p>
                 <p class="text-3xl font-black text-indigo-600">{{ $statsMovimientos }}</p>
             </div>
             <div class="h-12 w-12 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center">
@@ -36,7 +37,12 @@
     </div>
 
     {{-- Buscador --}}
-    <section class="bg-slate-900 rounded-2xl p-6 mb-8 shadow-lg">
+    <section class="overflow-hidden rounded-3xl border border-slate-900/90 bg-slate-900 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.8)]">
+        <div class="border-b border-slate-800/80 px-6 py-4">
+            <h2 class="text-sm font-semibold uppercase tracking-[0.22em] text-slate-300">Buscador inteligente</h2>
+            <p class="mt-1 text-sm text-slate-400">Encuentra lotes, series y productos sin navegar por varias pantallas.</p>
+        </div>
+        <div class="p-6">
         <form method="GET" action="{{ route('trazabilidad.index') }}" class="flex flex-col md:flex-row gap-4 items-end">
             <div class="flex-1 w-full flex flex-col gap-2">
                 <label for="q" class="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Filtro inteligente</label>
@@ -45,7 +51,7 @@
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     </span>
                     <input id="q" name="q" type="text" value="{{ $q }}" 
-                        placeholder="Número de lote, SKU o nombre del producto..." 
+                        placeholder="Número de orden, lote, serie o nombre del producto..." 
                         class="w-full bg-slate-800 border-none rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 transition-all outline-none text-sm">
                 </div>
             </div>
@@ -58,41 +64,47 @@
                 </a>
             </div>
         </form>
+        </div>
     </section>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {{-- Resultados de Búsqueda --}}
         <div class="lg:col-span-2">
-            <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h2 class="text-sm font-black text-slate-700 uppercase tracking-widest">Productos Encontrados</h2>
+            <section class="lc-card overflow-hidden">
+                <div class="lc-card-header bg-slate-50/70">
+                    <div>
+                        <h2 class="lc-section-title">Órdenes encontradas</h2>
+                        <p class="lc-section-subtitle">Selecciona un registro para abrir su linea de tiempo operativa.</p>
+                    </div>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left">
+                <div class="lc-table-wrap lc-scrollbar">
+                    <table class="lc-table min-w-[620px]">
                         <thead>
-                            <tr class="bg-white border-b border-slate-100">
-                                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Información del Producto</th>
-                                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
-                                <th class="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Acción</th>
+                            <tr>
+                                <th>Información del registro</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-right">Accion</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-50">
-                            @forelse ($productos as $producto)
-                            <tr class="hover:bg-slate-50/80 transition-colors {{ $selectedProducto && $selectedProducto->id == $producto->id ? 'bg-indigo-50/50' : '' }}">
-                                <td class="px-6 py-4">
-                                    <div class="text-sm font-bold text-slate-800">{{ $producto->tipoProducto?->nombre ?? 'Producto terminado' }}</div>
+                        <tbody>
+                            @forelse ($ordenes as $orden)
+                            <tr class="hover:bg-slate-50/80 transition-colors {{ $selectedRegistro && $selectedRegistro->id == $orden->id ? 'bg-indigo-50/50' : '' }}">
+                                <td>
+                                    <div class="text-sm font-bold text-slate-800">{{ $orden->nombre }}</div>
                                     <div class="text-[11px] text-slate-500 font-medium">
-                                        <span class="font-mono text-slate-400 uppercase">{{ $producto->numero_serie ?? $producto->numero_lote_produccion ?? '-' }}</span>
+                                        <span class="font-mono text-slate-400 uppercase">{{ $orden->numero_orden }}</span>
+                                        <span class="mx-1">·</span>
+                                        <span>{{ $orden->referencia }}</span>
                                     </div>
                                 </td>
-                                <td class="px-6 py-4 text-center">
-                                    <span class="inline-block px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter bg-slate-100 text-slate-600 border border-slate-200">
-                                        {{ $producto->estado ?? 'Indefinido' }}
+                                <td class="text-center">
+                                    <span class="lc-badge lc-badge-neutral">
+                                        {{ $orden->estado ?? 'Indefinido' }}
                                     </span>
                                 </td>
-                                <td class="px-6 py-4 text-right">
-                                    <a href="{{ route('trazabilidad.index', ['q' => $q, 'producto_id' => $producto->id]) }}" 
-                                       class="inline-flex items-center gap-2 text-xs font-bold {{ $selectedProducto && $selectedProducto->id == $producto->id ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600' }} transition-colors">
+                                <td class="text-right">
+                                    <a href="{{ route('trazabilidad.index', ['q' => $q, 'orden_id' => $orden->id]) }}" 
+                                       class="inline-flex items-center gap-2 text-xs font-bold {{ $selectedRegistro && $selectedRegistro->id == $orden->id ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600' }} transition-colors">
                                         Ver historial
                                     </a>
                                 </td>
@@ -100,7 +112,7 @@
                             @empty
                             <tr>
                                 <td colspan="3" class="px-6 py-12 text-center text-slate-400 italic text-sm">
-                                    No se encontraron productos con los criterios de búsqueda.
+                                    No se encontraron órdenes con los criterios de búsqueda.
                                 </td>
                             </tr>
                             @endforelse
@@ -118,7 +130,7 @@
 
         {{-- Línea de Tiempo --}}
         <div class="lg:col-span-1">
-            <section class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden sticky top-8">
+            <section class="lc-card overflow-hidden sticky top-8">
                 <div class="px-6 py-4 border-b border-slate-100 bg-indigo-600">
                     <h2 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
                         <svg class="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -127,76 +139,115 @@
                 </div>
                 
                 <div class="p-6">
-                    @if (! $selectedProducto)
+                    @if (! $selectedRegistro)
                         <div class="text-center py-10 px-4">
                             <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-dashed border-slate-200">
                                 <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
                             </div>
                             <p class="text-sm text-slate-400 font-medium leading-relaxed">
-                                Selecciona un producto de la lista para desglosar su trayectoria.
+                                Selecciona una orden de la lista para desglosar su trayectoria.
                             </p>
                         </div>
                     @else
                         <div class="mb-6 pb-4 border-b border-slate-100">
                             <div class="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Visualizando historial de:</div>
-                            <div class="text-lg font-black text-slate-800 leading-tight">{{ $selectedProducto->tipoProducto?->nombre ?? 'Producto terminado' }}</div>
-                            <div class="text-xs text-slate-500 mt-1">Serie/Lote: {{ $selectedProducto->numero_serie ?? $selectedProducto->numero_lote_produccion ?? '-' }}</div>
+                            <div class="text-lg font-black text-slate-800 leading-tight">{{ $selectedRegistro->nombre }}</div>
+                            <div class="text-xs text-slate-500 mt-1">Orden: {{ $selectedRegistro->numero_orden }} · Referencia: {{ $selectedRegistro->referencia }}</div>
                         </div>
 
-                        <div class="relative pl-6 border-l-2 border-slate-100 space-y-8">
-                            @forelse ($selectedProducto->etapasTrazabilidad->sortByDesc('fecha_fin_real')->sortByDesc('fecha_inicio_real') as $paso)
+                        <div class="mb-6 flex items-center justify-between gap-3">
+                            <h2 class="text-base font-bold text-slate-800">Línea de tiempo por producto</h2>
+                            <span class="text-xs text-slate-500">Estado actual: {{ $selectedRegistro->estado_orden }}</span>
+                        </div>
+
+                        <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            Coincidencia activa: paso {{ $selectedRegistro->linea_tiempo->paso_actual }} de {{ $selectedRegistro->linea_tiempo->total_pasos }}.
+                            Fuente:
+                            @if($selectedRegistro->linea_tiempo->fuente === 'trazabilidad')
+                                etapas de trazabilidad configuradas para este producto.
+                            @else
+                                secuencia base de fabricación (fallback).
+                            @endif
+                        </div>
+
+                        <div class="relative space-y-8 border-l-2 border-slate-100 pl-6">
+                            @forelse ($selectedRegistro->timeline as $paso)
                             <div class="relative">
-                                {{-- Punto de la línea --}}
                                 <div class="absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white bg-indigo-600 shadow-sm"></div>
-                                
+
                                 <div class="flex flex-col gap-1">
                                     <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        {{ optional($paso->fecha_fin_real ?? $paso->fecha_inicio_real ?? $paso->created_at)->format('d M, Y · H:i') }}
+                                        {{ optional($paso->fecha)->format('d M, Y · H:i') }}
                                     </span>
-                                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">{{ $paso->etapaPlantilla?->nombre ?? 'Etapa' }}</h3>
-                                    <div class="mt-1">
-                                        <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider {{ in_array($paso->estado, ['Esperando Aprobacion', 'Esperando Aprobación']) ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-600 border border-slate-200' }}">
+
+                                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">{{ $paso->nombre }}</h3>
+
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ in_array($paso->estado, ['Esperando Aprobacion', 'Esperando Aprobación']) ? 'border-amber-200 bg-amber-100 text-amber-700' : (in_array($paso->estado, ['Aprobado', 'Aceptada']) ? 'border-emerald-200 bg-emerald-100 text-emerald-700' : (in_array($paso->estado, ['Rechazado', 'Rechazada']) ? 'border-rose-200 bg-rose-100 text-rose-700' : 'border-slate-200 bg-slate-100 text-slate-600')) }}">
                                             {{ $paso->estado }}
                                         </span>
+                                        <span class="inline-flex items-center rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                                            {{ $paso->tipo }}
+                                        </span>
                                     </div>
-                                    <p class="text-xs text-slate-500 leading-relaxed bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1">
-                                        {{ $paso->notas_produccion ?: ($paso->observaciones_etapa ?: 'Sin observaciones adicionales.') }}
+
+                                    <p class="mt-1 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">
+                                        {{ $paso->notas }}
                                     </p>
-                                    @if (in_array($paso->estado, ['Esperando Aprobacion', 'Esperando Aprobación']))
+
+                                    @if ($paso->tipo === 'etapa' && in_array($paso->estado, ['Esperando Aprobacion', 'Esperando Aprobación']))
                                         <div class="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                            Acciones bloqueadas: registrar consumos e iniciar tiempos hasta firma de aprobacion.
+                                            Bloqueada hasta aprobación.
                                         </div>
 
-                                        @can('aprobar', $paso)
-                                            <form method="POST" action="{{ route('trazabilidad.etapas.aprobar', ['etapaId' => $paso->id]) }}" class="mt-3">
+                                        @can('aprobar', $paso->modelo)
+                                            <form method="POST" action="{{ route('trazabilidad.etapas.aprobar', ['etapaId' => $paso->etapa_id]) }}" class="mt-3">
                                                 @csrf
                                                 @method('PATCH')
                                                 <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
-                                                    Aprobar Recepcion
+                                                    Aprobar Recepción
                                                 </button>
                                             </form>
                                         @else
                                             <div class="mt-2 text-[11px] text-slate-500">
-                                                Solo el responsable del area o rol autorizado puede aprobar esta etapa.
+                                                Solo un rol autorizado puede aprobar esta etapa.
                                             </div>
                                         @endcan
                                     @endif
+
+                                    @if ($paso->tipo === 'producto' && ($paso->estado === 'Pendiente Inspección') && \App\Services\PermisoService::canAccessModule(auth()->user(), 'Terminados', 'editar'))
+                                        <form method="POST" action="{{ route('terminados.revision', ['productoTerminado' => $selectedRegistro->producto_terminado_id]) }}" class="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                            @csrf
+                                            @method('PATCH')
+                                            <textarea name="observaciones_calidad" rows="2" placeholder="Observaciones de calidad (opcional)" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                                            <div class="flex gap-2">
+                                                <button type="submit" name="decision" value="APROBADO" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+                                                    Aprobar producto
+                                                </button>
+                                                <button type="submit" name="decision" value="RECHAZADO" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+                                                    Rechazar producto
+                                                </button>
+                                            </div>
+                                        </form>
+                                    @endif
+
                                     <div class="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-slate-400 uppercase">
                                         <div class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px] text-slate-500">
-                                            {{ substr($paso->ordenProduccion?->user?->name ?? 'S', 0, 1) }}
+                                            {{ substr($paso->responsable ?? 'S', 0, 1) }}
                                         </div>
-                                        Responsable: {{ $paso->ordenProduccion?->user?->name ?? 'Sistema' }}
+                                        Responsable: {{ $paso->responsable ?? 'Sistema' }}
                                     </div>
+
                                     @if ($paso->aprobador)
                                         <div class="mt-1 text-[10px] font-bold uppercase tracking-wider text-green-700">
-                                            Aprobado por: {{ $paso->aprobador->name }}
+                                            Aprobado por: {{ $paso->aprobador }}
                                         </div>
                                     @endif
                                 </div>
                             </div>
                             @empty
                             <div class="text-sm text-slate-400 italic py-4">
-                                No hay movimientos registrados para este producto.
+                                No hay movimientos registrados para esta orden.
                             </div>
                             @endforelse
                         </div>

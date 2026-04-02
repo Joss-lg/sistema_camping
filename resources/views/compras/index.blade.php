@@ -1,82 +1,131 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-6 space-y-6">
-    <div class="flex items-center justify-between">
+<div class="lc-page">
+    <section class="lc-page-header">
         <div>
-            <h1 class="text-3xl font-extrabold text-slate-800">Órdenes de Compra</h1>
-            <p class="text-slate-500 text-sm mt-1">Seguimiento de compras por proveedor, estado y monto.</p>
+            <div class="lc-kicker">Abastecimiento</div>
+            <h1 class="lc-title">Órdenes de compra</h1>
+            <p class="lc-subtitle">Monitorea proveedor, fecha compromiso, estado y monto para tomar decisiones de abastecimiento sin salir del tablero.</p>
         </div>
-        <a href="{{ route('ordenes-compra.create') }}" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm">Nueva</a>
-    </div>
+        <div class="flex items-center gap-3">
+            <span class="lc-badge lc-badge-neutral">{{ method_exists($ordenesCompra, 'total') ? $ordenesCompra->total() : $ordenesCompra->count() }} órdenes</span>
+        </div>
+    </section>
 
-    <section class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-            <input type="text" name="q" value="{{ request('q') }}" placeholder="Número de orden" class="border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
-            <select name="proveedor_id" class="border border-slate-300 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+    <section class="lc-toolbar" x-data="{ loading: false }">
+        <div>
+            <h2 class="lc-section-title">Filtros de compra</h2>
+            <p class="lc-section-subtitle">Encuentra órdenes por número, proveedor o estado para validar recepción y atrasos.</p>
+        </div>
+        <form method="GET" class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 w-full xl:max-w-4xl" x-on:submit="loading = true">
+            <input type="text" name="q" value="{{ request('q') }}" placeholder="Número de orden" class="lc-input">
+            <select name="proveedor_id" class="lc-select">
                 <option value="">Proveedor</option>
                 @foreach($proveedores as $proveedor)
                     <option value="{{ $proveedor->id }}" @selected((string) request('proveedor_id') === (string) $proveedor->id)>{{ $proveedor->razon_social }}</option>
                 @endforeach
             </select>
-            <select name="estado" class="border border-slate-300 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
+            <select name="estado" class="lc-select">
                 <option value="">Estado</option>
                 @foreach(['Pendiente','Confirmada','Recibida','Cancelada'] as $estado)
                     <option value="{{ $estado }}" @selected(request('estado') === $estado)>{{ $estado }}</option>
                 @endforeach
             </select>
-            <button class="bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-4 py-2.5 font-semibold text-sm">Filtrar</button>
+            <div class="flex gap-3">
+                <button type="submit" class="lc-btn-secondary flex-1" x-bind:disabled="loading" x-bind:aria-busy="loading.toString()">
+                    <svg x-cloak x-show="loading" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="mr-2 h-4 w-4 animate-spin" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4.75 12a7.25 7.25 0 0 1 14.5 0" />
+                    </svg>
+                    <span x-text="loading ? 'Filtrando...' : 'Filtrar'"></span>
+                </button>
+                @if(request()->filled('q') || request()->filled('proveedor_id') || request()->filled('estado'))
+                    <a href="{{ route('ordenes-compra.index') }}" class="lc-btn-secondary">Limpiar</a>
+                @endif
+            </div>
         </form>
     </section>
 
-    <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full min-w-[860px] border-collapse text-left">
+    <section class="lc-card overflow-hidden">
+        <div class="lc-card-header">
+            <div>
+                <h2 class="lc-section-title">Seguimiento de órdenes</h2>
+                <p class="lc-section-subtitle">Visualiza el compromiso financiero y el avance de recepción con acceso directo a detalle y edición.</p>
+            </div>
+        </div>
+        <div class="lc-table-wrap lc-scrollbar">
+            <table class="lc-table min-w-[900px]">
                 <thead>
-                    <tr class="bg-slate-50 border-b border-slate-100 text-slate-500">
-                        <th class="p-4 text-xs font-bold uppercase">Número</th>
-                        <th class="p-4 text-xs font-bold uppercase">Proveedor</th>
-                        <th class="p-4 text-xs font-bold uppercase">Fecha</th>
-                        <th class="p-4 text-xs font-bold uppercase">Estado</th>
-                        <th class="p-4 text-xs font-bold uppercase">Total</th>
-                        <th class="p-4 text-xs font-bold uppercase text-center">Acciones</th>
+                    <tr>
+                        <th>Número</th>
+                        <th>Proveedor</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Total</th>
+                        <th class="text-right">Acciones</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
+                <tbody>
                     @forelse($ordenesCompra as $ordenCompra)
                         @php
                             $estado = (string) ($ordenCompra->estado ?? '-');
                             $badge = match ($estado) {
-                                'Recibida' => 'bg-green-100 text-green-700',
-                                'Confirmada' => 'bg-blue-100 text-blue-700',
-                                'Cancelada' => 'bg-red-100 text-red-700',
-                                default => 'bg-amber-100 text-amber-700',
+                                'Recibida' => 'lc-badge lc-badge-success',
+                                'Confirmada' => 'lc-badge border-sky-200 bg-sky-50 text-sky-700',
+                                'Cancelada' => 'lc-badge border-red-200 bg-red-50 text-red-700',
+                                default => 'lc-badge lc-badge-warning',
                             };
                         @endphp
-                        <tr class="hover:bg-slate-50/60 transition-colors">
-                            <td class="p-4 font-semibold">{{ $ordenCompra->numero_orden }}</td>
-                            <td class="p-4">{{ $ordenCompra->proveedor?->razon_social ?? '-' }}</td>
-                            <td class="p-4">{{ $ordenCompra->fecha_orden }}</td>
-                            <td class="p-4">
-                                <span class="px-2.5 py-1 rounded-md text-xs font-bold {{ $badge }}">{{ $estado }}</span>
+                        <tr>
+                            <td>
+                                <div class="font-semibold text-slate-900">{{ $ordenCompra->numero_orden }}</div>
+                                <div class="text-xs text-slate-500">{{ $ordenCompra->condiciones_pago ?: 'Sin condición registrada' }}</div>
                             </td>
-                            <td class="p-4">{{ number_format((float) $ordenCompra->monto_total, 2) }}</td>
-                            <td class="p-4 text-center">
-                                <div class="inline-flex gap-2">
-                                    <a href="{{ route('ordenes-compra.show', $ordenCompra) }}" class="bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">Ver</a>
-                                    <a href="{{ route('ordenes-compra.edit', $ordenCompra) }}" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">Editar</a>
+                            <td>
+                                <div class="font-medium text-slate-800">{{ $ordenCompra->proveedor?->razon_social ?? '-' }}</div>
+                                <div class="text-xs text-slate-500">Entrega prevista: {{ optional($ordenCompra->fecha_entrega_prevista)->format('d/m/Y') ?? 'N/A' }}</div>
+                            </td>
+                            <td>{{ optional($ordenCompra->fecha_orden)->format('d/m/Y') ?? $ordenCompra->fecha_orden }}</td>
+                            <td><span class="{{ $badge }}">{{ $estado }}</span></td>
+                            <td>
+                                <div class="font-semibold text-slate-900">${{ number_format((float) $ordenCompra->monto_total, 2) }}</div>
+                                <div class="text-xs text-slate-500">Imp.: ${{ number_format((float) $ordenCompra->impuestos, 2) }}</div>
+                            </td>
+                            <td>
+                                <div class="lc-table-actions">
+                                    <a href="{{ route('ordenes-compra.show', $ordenCompra) }}" class="lc-icon-btn lc-icon-btn-info" title="Ver orden" aria-label="Ver orden {{ $ordenCompra->numero_orden }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="h-4 w-4">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                                        </svg>
+                                    </a>
+                                    <a href="{{ route('ordenes-compra.edit', $ordenCompra) }}" class="lc-icon-btn lc-icon-btn-warning" title="Editar orden" aria-label="Editar orden {{ $ordenCompra->numero_orden }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="h-4 w-4">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                                        </svg>
+                                    </a>
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td class="p-6 text-center text-slate-500" colspan="6">Sin registros</td>
+                            <td colspan="6">
+                                <div class="lc-empty-state my-4">
+                                    <div class="lc-empty-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-7 w-7">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386a.75.75 0 0 1 .727.568l.651 2.605m0 0 1.54 6.161a2.25 2.25 0 0 0 2.183 1.703h7.632a2.25 2.25 0 0 0 2.183-1.703l1.154-4.616a.75.75 0 0 0-.727-.932H5.014Z" />
+                                        </svg>
+                                    </div>
+                                    <div class="lc-empty-title">No hay órdenes de compra registradas</div>
+                                    <p class="lc-empty-copy">Genera una orden nueva o cambia los filtros para revisar otro subconjunto de abastecimiento.</p>
+                                </div>
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <div class="px-4 py-3 border-t border-slate-100">{{ $ordenesCompra->links() }}</div>
+        <div class="lc-pagination-shell">{{ $ordenesCompra->links() }}</div>
     </section>
 </div>
 @endsection

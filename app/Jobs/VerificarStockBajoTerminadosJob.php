@@ -16,6 +16,14 @@ class VerificarStockBajoTerminadosJob implements ShouldQueue
 
     public int $timeout = 180;
 
+    /**
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [60, 300, 900];
+    }
+
     public function handle(): void
     {
         $inventarios = InventarioProductoTerminado::query()

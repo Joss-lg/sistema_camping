@@ -22,6 +22,13 @@ class InsumoController extends Controller
 		$this->authorize('viewAny', Insumo::class);
 
 		$query = Insumo::query()
+			->withSum([
+				'ordenesCompraDetalles as stock_entrante_confirmado' => function ($subQuery) {
+					$subQuery->whereHas('ordenCompra', function ($ordenCompraQuery) {
+						$ordenCompraQuery->where('estado', 'Confirmada');
+					});
+				},
+			], 'cantidad_solicitada')
 			->with(['categoriaInsumo', 'unidadMedida', 'tipoProducto', 'proveedor', 'ubicacionAlmacen'])
 			->orderBy('nombre');
 

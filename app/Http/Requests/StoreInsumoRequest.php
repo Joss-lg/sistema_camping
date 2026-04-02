@@ -17,7 +17,7 @@ class StoreInsumoRequest extends FormRequest
             'codigo_insumo' => ['required', 'string', 'max:30', 'unique:insumos,codigo_insumo'],
             'nombre' => ['required', 'string', 'max:150'],
             'descripcion' => ['nullable', 'string'],
-            'especificaciones_tecnicas' => ['nullable', 'array'],
+            'especificaciones_tecnicas' => ['nullable', 'string'],
             'categoria_insumo_id' => ['required', 'integer', 'exists:categorias_insumo,id'],
             'unidad_medida_id' => ['required', 'integer', 'exists:unidades_medida,id'],
             'tipo_producto_id' => ['nullable', 'integer', 'exists:tipos_producto,id'],

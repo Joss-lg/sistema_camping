@@ -11,6 +11,17 @@ class OrdenCompra extends Model
 {
     use SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $ordenCompra): void {
+            if (! empty($ordenCompra->numero_orden)) {
+                return;
+            }
+
+            $ordenCompra->numero_orden = self::generarNumeroOrden();
+        });
+    }
+
     protected $table = 'ordenes_compra';
 
     protected $fillable = [
@@ -121,5 +132,14 @@ class OrdenCompra extends Model
     public function puedeModificarse(): bool
     {
         return in_array($this->estado, ['Pendiente', 'Confirmada']);
+    }
+
+    private static function generarNumeroOrden(): string
+    {
+        do {
+            $numero = 'OC-' . now()->format('Ymd') . '-' . random_int(1000, 9999);
+        } while (self::query()->where('numero_orden', $numero)->exists());
+
+        return $numero;
     }
 }

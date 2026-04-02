@@ -30,7 +30,7 @@ class TerminadosFlowTest extends TestCase
         $inventario = InventarioProductoTerminado::query()->latest('id')->first();
         $this->assertNotNull($inventario);
         $this->assertSame(7.0, (float) $inventario->cantidad_en_almacen);
-        $this->assertSame('En Almacén', (string) $inventario->estado);
+        $this->assertSame(InventarioProductoTerminado::ESTADO_PENDIENTE_INSPECCION, (string) $inventario->estado);
 
         $this->actingAs($user)->post(route('terminados.ajustes.store'), [
             'producto_id' => $inventario->id,

@@ -1,142 +1,62 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-6 space-y-6">
+<div class="container mx-auto px-4 py-8 space-y-6" x-data="{ loading: false }">
+    {{-- Header --}}
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-            <h1 class="text-3xl font-extrabold text-slate-800">Terminados</h1>
-            <p class="text-slate-500 text-sm mt-1">Registra ingresos desde producción y aplica ajustes auditados sobre inventario final.</p>
+            <h1 class="text-3xl font-extrabold text-slate-900">Inventario de Terminados</h1>
+            <p class="text-slate-500 text-sm mt-1">Gestiona el ingreso desde producción y ajustes de inventario final</p>
         </div>
-        <span class="inline-flex items-center bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold border border-green-200">
-            Flujo: Producción a Almacén
+        <span class="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-200">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6-4V4m0 6v4m4-10a2 2 0 110 4 2 2 0 010-4z"></path></svg>
+            Flujo: Producción → Almacén
         </span>
     </div>
 
-    <section class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
-            <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-semibold text-slate-600">Filtrar por almacén</label>
-                <select name="ubicacion_almacen_id" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-slate-500 outline-none">
-                    <option value="">Todas las ubicaciones</option>
-                    @foreach ($ubicaciones as $ubicacion)
-                        <option value="{{ $ubicacion->id }}" @selected((string) $ubicacionFiltro === (string) $ubicacion->id)>
-                            {{ $ubicacion->nombre }} ({{ $ubicacion->codigo_ubicacion }})
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <button class="bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-4 py-2.5 font-semibold text-sm">Filtrar</button>
-            <a href="{{ route('terminados.index') }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg px-4 py-2.5 font-semibold text-sm text-center">Limpiar</a>
-        </form>
-    </section>
+    {{-- Alertas --}}
+    @include('partials.flash-messages')
 
-    @if ($errors->any())
-        <div class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-sm">
-            {{ $errors->first() }}
-        </div>
-    @endif
-
+    {{-- MÉtricas rápidas --}}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <article class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div class="text-xs font-bold uppercase text-slate-400">Productos</div>
-            <div class="text-3xl font-extrabold text-slate-800 mt-2">{{ $statsTotalProductos }}</div>
-        </article>
-        <article class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div class="text-xs font-bold uppercase text-red-500">Stock Crítico</div>
-            <div class="text-3xl font-extrabold text-slate-800 mt-2">{{ $statsStockBajo }}</div>
-        </article>
-        <article class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div class="text-xs font-bold uppercase text-slate-400">Lotes Activos</div>
-            <div class="text-3xl font-extrabold text-slate-800 mt-2">{{ $statsLotes }}</div>
-        </article>
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div class="flex items-center justify-between gap-4 mb-5">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-start justify-between">
                 <div>
-                    <h2 class="text-lg font-bold text-slate-800">Ingreso desde producción</h2>
-                    <p class="text-slate-500 text-sm mt-1">Convierte una orden finalizada en inventario disponible.</p>
+                    <p class="text-xs font-semibold uppercase text-slate-500">Total Productos</p>
+                    <p class="text-2xl font-bold text-slate-900 mt-2">{{ $statsTotalProductos }}</p>
                 </div>
-                <span class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
-                    {{ $ordenesFinalizadas->count() }} órdenes
-                </span>
+                <div class="bg-emerald-100 p-3 rounded-lg">
+                    <svg class="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM5 16a2 2 0 11-4 0 2 2 0 014 0zm8 0a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                </div>
             </div>
+        </div>
 
-            <form method="POST" action="{{ route('terminados.ingresos.store') }}" class="space-y-4">
-                @csrf
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Orden finalizada</label>
-                    <select name="orden_produccion_id" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="">Selecciona una orden</option>
-                        @foreach ($ordenesFinalizadas as $orden)
-                            @php $pendiente = max((float) $orden->cantidad_completada - (float) ($orden->cantidad_ingresada ?? 0), 0); @endphp
-                            <option value="{{ $orden->id }}" @selected((string) old('orden_produccion_id') === (string) $orden->id)>
-                                #{{ $orden->id }} - {{ $orden->producto?->nombre }} (Pendiente: {{ number_format($pendiente, 2) }})
-                            </option>
-                        @endforeach
-                    </select>
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase text-red-500">Stock Crítico</p>
+                    <p class="text-2xl font-bold text-slate-900 mt-2">{{ $statsStockBajo }}</p>
                 </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Cantidad de ingreso</label>
-                    <input name="cantidad_ingreso" type="number" step="0.01" value="{{ old('cantidad_ingreso') }}" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <div class="bg-red-100 p-3 rounded-lg">
+                    <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
                 </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Ubicación destino</label>
-                    <select name="ubicacion_almacen_id" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="">Ubicación activa por defecto</option>
-                        @foreach ($ubicaciones as $ubicacion)
-                            <option value="{{ $ubicacion->id }}" @selected((string) old('ubicacion_almacen_id') === (string) $ubicacion->id)>
-                                {{ $ubicacion->nombre }} ({{ $ubicacion->codigo_ubicacion }})
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm">Registrar entrada</button>
-            </form>
-        </section>
-
-        <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div class="mb-5">
-                <h2 class="text-lg font-bold text-slate-800">Ajuste de inventario</h2>
-                <p class="text-slate-500 text-sm mt-1">Aplica un movimiento manual auditado sobre producto terminado.</p>
             </div>
+        </div>
 
-            <form method="POST" action="{{ route('terminados.ajustes.store') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                @csrf
-                <div class="md:col-span-2 flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Producto</label>
-                    <select name="producto_id" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="">Selecciona producto</option>
-                        @foreach ($productos as $producto)
-                            <option value="{{ $producto->id }}" @selected((string) old('producto_id') === (string) $producto->id)>
-                                {{ $producto->nombre }} (Stock: {{ number_format($producto->stock, 2) }})
-                            </option>
-                        @endforeach
-                    </select>
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase text-slate-500">Lotes Activos</p>
+                    <p class="text-2xl font-bold text-slate-900 mt-2">{{ $statsLotes }}</p>
                 </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Tipo de ajuste</label>
-                    <select name="tipo_ajuste" required class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                        <option value="SUMAR" @selected(old('tipo_ajuste') === 'SUMAR')>Sumar</option>
-                        <option value="RESTAR" @selected(old('tipo_ajuste') === 'RESTAR')>Restar</option>
-                    </select>
+                <div class="bg-slate-100 p-3 rounded-lg">
+                    <svg class="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 20 20"><path d="M7 9a2 2 0 11-4 0 2 2 0 014 0zm7-2a2 2 0 11-4 0 2 2 0 014 0zM5.3 13a3 3 0 015.4 0l3 3a2 2 0 01-2.828 2.828l-3.586-3.586a1 1 0 00-1.414 0l-3.586 3.586A2 2 0 01.3 16l3-3z"></path></svg>
                 </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Cantidad</label>
-                    <input name="cantidad" type="number" step="0.01" value="{{ old('cantidad') }}" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
-                </div>
-                <div class="md:col-span-2 flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Motivo</label>
-                    <textarea name="motivo" rows="3" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">{{ old('motivo') }}</textarea>
-                </div>
-                <div class="md:col-span-2">
-                    <button type="submit" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-lg shadow-sm">Aplicar ajuste</button>
-                </div>
-            </form>
-        </section>
+            </div>
+        </div>
     </div>
 
+    {{-- Tabla de inventario general --}}
     <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -153,6 +73,7 @@
                         <th class="px-6 py-4 text-xs font-bold uppercase text-center">Identificación</th>
                         <th class="px-6 py-4 text-xs font-bold uppercase text-center">Categoría</th>
                         <th class="px-6 py-4 text-xs font-bold uppercase text-center">Unidad</th>
+                        <th class="px-6 py-4 text-xs font-bold uppercase text-center">Estado</th>
                         <th class="px-6 py-4 text-xs font-bold uppercase text-right">Stock</th>
                         <th class="px-6 py-4 text-xs font-bold uppercase text-center">Rangos</th>
                         <th class="px-6 py-4 text-xs font-bold uppercase text-center">Trazabilidad</th>
@@ -179,6 +100,11 @@
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">{{ $producto->categoria?->nombre ?? '-' }}</span>
                             </td>
                             <td class="px-6 py-4 text-center">{{ $producto->unidad?->nombre ?? '-' }}</td>
+                            <td class="px-6 py-4 text-center text-[10px] font-bold uppercase">
+                                <span class="px-2 py-1 rounded-full {{ $producto->estado_inventario === 'En Almacén' ? 'bg-emerald-100 text-emerald-700' : ($producto->estado_inventario === 'Pendiente Inspección' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700') }}">
+                                    {{ $producto->estado_calidad === 'Pendiente Inspección' ? 'Pendiente inspección' : $producto->estado_inventario }}
+                                </span>
+                            </td>
                             <td class="px-6 py-4 text-right font-bold {{ $isLow ? 'text-red-600' : 'text-slate-800' }}">{{ number_format((float) $producto->stock, 2) }}</td>
                             <td class="px-6 py-4">
                                 <div class="flex flex-col gap-1 items-center">
@@ -203,7 +129,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-10 text-center text-slate-500">No hay productos terminados registrados.</td>
+                            <td colspan="9" class="px-6 py-10 text-center text-slate-500">No hay productos terminados registrados.</td>
                         </tr>
                     @endforelse
                 </tbody>

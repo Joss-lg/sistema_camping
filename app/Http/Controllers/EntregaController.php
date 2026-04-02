@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Insumo;
+use App\Models\LoteInsumo;
 use App\Models\MovimientoInventario;
 use App\Models\OrdenCompra;
+use App\Models\UbicacionAlmacen;
 use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class EntregaController extends Controller
@@ -20,6 +23,7 @@ class EntregaController extends Controller
         $userRole = strtoupper((string) ($user?->role?->slug ?: $user?->role?->nombre ?: 'USUARIO'));
         $roleKey = PermisoService::normalizeRoleKey((string) ($user?->role?->slug ?: $user?->role?->nombre));
         $isProveedor = $roleKey === 'PROVEEDOR';
+        $proveedorIds = $isProveedor && $user ? $this->resolveProveedorIdsForUser($user) : [];
 
         abort_unless(PermisoService::canAccessModule($user, 'Entregas'), 403);
 
@@ -37,67 +41,65 @@ class EntregaController extends Controller
                 ],
             ]);
 
-        $ordenes = $isProveedor ? collect() : OrdenCompra::query()
+        $ordenes = OrdenCompra::query()
             ->with('proveedor:id,razon_social,nombre_comercial')
+            ->when($isProveedor, function ($query) use ($proveedorIds): void {
+                $query->whereIn('proveedor_id', $proveedorIds ?: [0]);
+            })
             ->orderByDesc('fecha_orden')
             ->limit(200)
             ->get()
-            ->map(fn (OrdenCompra $orden): object => (object) [
-                'id' => $orden->id,
-                'fecha' => optional($orden->fecha_orden)->format('Y-m-d') ?: '-',
-                'proveedor' => (object) [
-                    'nombre' => $orden->proveedor?->nombre_comercial ?: $orden->proveedor?->razon_social,
-                ],
-            ]);
+            ->map(function (OrdenCompra $orden): object {
+                $canViewOrden = Gate::allows('view', $orden);
 
-        $entregasRaw = MovimientoInventario::query()
-            ->with(['insumo.proveedor:id,razon_social,nombre_comercial', 'user:id,name'])
-            ->where('tipo_movimiento', MovimientoInventario::TIPO_ENTRADA)
-            ->when($isProveedor && $user, function ($query) use ($user): void {
-                $query->where(function ($subQuery) use ($user): void {
-                    $subQuery->whereHas('insumo.proveedor', function ($proveedorQuery) use ($user): void {
-                        $proveedorQuery->where('email_general', $user->email)
-                            ->orWhereHas('contactos', function ($contactosQuery) use ($user): void {
-                                $contactosQuery->where('email', $user->email);
-                            });
-                    });
-                });
+                return (object) [
+                    'id' => $orden->id,
+                    'fecha' => optional($orden->fecha_orden)->format('Y-m-d') ?: '-',
+                    'proveedor' => (object) [
+                        'nombre' => $orden->proveedor?->nombre_comercial ?: $orden->proveedor?->razon_social,
+                    ],
+                    'url_show' => $canViewOrden ? route('ordenes-compra.show', $orden) : null,
+                ];
+            });
+
+        $ordenesRecibidas = OrdenCompra::query()
+            ->with('proveedor:id,razon_social,nombre_comercial')
+            ->recibidas()
+            ->when($isProveedor, function ($query) use ($proveedorIds): void {
+                $query->whereIn('proveedor_id', $proveedorIds ?: [0]);
             })
-            ->orderByDesc('fecha_movimiento')
-            ->limit(300)
-            ->get();
+            ->orderByDesc('fecha_entrega_real')
+            ->orderByDesc('id')
+            ->limit(200)
+            ->get()
+            ->map(function (OrdenCompra $orden): object {
+                $canViewOrden = Gate::allows('view', $orden);
 
-        $entregas = $entregasRaw->map(function (MovimientoInventario $mov): object {
-            [$estadoRevision, $observacionRevision] = $this->parseRevision((string) $mov->motivo, (string) $mov->notas);
+                return (object) [
+                    'id' => $orden->id,
+                    'numero_orden' => $orden->numero_orden,
+                    'proveedor' => (object) [
+                        'nombre' => $orden->proveedor?->nombre_comercial ?: $orden->proveedor?->razon_social,
+                    ],
+                    'fecha_orden' => optional($orden->fecha_orden)->format('Y-m-d') ?: '-',
+                    'fecha_entrega_real' => optional($orden->fecha_entrega_real)->format('Y-m-d') ?: '-',
+                    'estado' => (string) $orden->estado,
+                    'monto_total' => (float) ($orden->monto_total ?? 0),
+                    'url_show' => $canViewOrden ? route('ordenes-compra.show', $orden) : null,
+                ];
+            });
 
-            return (object) [
-                'id' => $mov->id,
-                'proveedor' => (object) [
-                    'nombre' => $mov->insumo?->proveedor?->nombre_comercial ?: $mov->insumo?->proveedor?->razon_social,
-                ],
-                'usuario' => (object) [
-                    'nombre' => $mov->user?->name,
-                ],
-                'material' => (object) [
-                    'nombre' => $mov->insumo?->nombre,
-                ],
-                'orden_compra_id' => $mov->orden_compra_id,
-                'fecha_entrega' => $mov->fecha_movimiento,
-                'cantidad_entregada' => (float) $mov->cantidad,
-                'estado_calidad' => $mov->motivo ?: 'ACEPTADO',
-                'estado_revision' => $estadoRevision,
-                'observacion_revision' => $observacionRevision,
-                'observaciones' => $mov->notas,
-                'revisor' => null,
-            ];
-        });
-
-        return view('entregas.index', compact('userRole', 'entregas', 'materiales', 'ordenes'));
+        return view('entregas.index', compact('userRole', 'materiales', 'ordenes', 'ordenesRecibidas'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Entregas', 'editar'), 403);
+
+        $user = $request->user();
+        $roleKey = PermisoService::normalizeRoleKey((string) ($user?->role?->slug ?: $user?->role?->nombre));
+        $isProveedor = $roleKey === 'PROVEEDOR';
+        $proveedorIds = $isProveedor && $user ? $this->resolveProveedorIdsForUser($user) : [];
 
         $data = $request->validate([
             'material_id' => ['required', 'integer', 'exists:insumos,id'],
@@ -108,28 +110,155 @@ class EntregaController extends Controller
             'observaciones' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        if ($isProveedor) {
+            $materialPermitido = Insumo::query()
+                ->where('id', (int) $data['material_id'])
+                ->whereIn('proveedor_id', $proveedorIds ?: [0])
+                ->exists();
+
+            if (! $materialPermitido) {
+                abort(403, 'No tienes permiso para registrar entregas de este material.');
+            }
+
+            if (! empty($data['orden_compra_id'])) {
+                $ordenPermitida = OrdenCompra::query()
+                    ->where('id', (int) $data['orden_compra_id'])
+                    ->whereIn('proveedor_id', $proveedorIds ?: [0])
+                    ->exists();
+
+                if (! $ordenPermitida) {
+                    abort(403, 'No tienes permiso para registrar entregas en esta orden de compra.');
+                }
+            }
+        }
+
         $insumo = Insumo::query()->findOrFail((int) $data['material_id']);
 
         DB::transaction(function () use ($insumo, $data): void {
+            $cantidad = (float) $data['cantidad_entregada'];
+            $ordenCompraId = $data['orden_compra_id']
+                ? (int) $data['orden_compra_id']
+                : $this->resolverOrdenCompraTecnicaEntrega($insumo);
+
+            if (! $ordenCompraId) {
+                throw new \RuntimeException('No se pudo resolver una orden de compra para registrar el lote de entrega.');
+            }
+
             MovimientoInventario::query()->create([
                 'tipo_movimiento' => MovimientoInventario::TIPO_ENTRADA,
                 'insumo_id' => $insumo->id,
-                'orden_compra_id' => $data['orden_compra_id'] ? (int) $data['orden_compra_id'] : null,
-                'cantidad' => (float) $data['cantidad_entregada'],
+                'orden_compra_id' => $ordenCompraId,
+                'cantidad' => $cantidad,
                 'unidad_medida_id' => $insumo->unidad_medida_id,
                 'motivo' => (string) $data['estado_calidad'],
                 'user_id' => Auth::id() ?? 1,
                 'fecha_movimiento' => $data['fecha_entrega'],
                 'notas' => $data['observaciones'] ?? null,
                 'saldo_anterior' => (float) $insumo->stock_actual,
-                'saldo_posterior' => (float) $insumo->stock_actual + (float) $data['cantidad_entregada'],
+                'saldo_posterior' => (float) $insumo->stock_actual + $cantidad,
             ]);
 
-            $insumo->stock_actual = (float) $insumo->stock_actual + (float) $data['cantidad_entregada'];
+            $estadoLote = match ((string) $data['estado_calidad']) {
+                'RECHAZADO' => 'Rechazado',
+                'OBSERVADO' => 'Duda',
+                default => 'Aceptado',
+            };
+
+            $ubicacionId = $insumo->ubicacion_almacen_id
+                ?: UbicacionAlmacen::query()->where('activo', true)->value('id');
+
+            LoteInsumo::query()->create([
+                'numero_lote' => sprintf('ENT-%d-%s', (int) $insumo->id, now()->format('YmdHisu')),
+                'insumo_id' => (int) $insumo->id,
+                'orden_compra_id' => $ordenCompraId,
+                'proveedor_id' => $insumo->proveedor_id,
+                'fecha_lote' => $data['fecha_entrega'],
+                'fecha_recepcion' => $data['fecha_entrega'],
+                'cantidad_recibida' => $cantidad,
+                'cantidad_en_stock' => $cantidad,
+                'cantidad_consumida' => 0,
+                'cantidad_rechazada' => 0,
+                'ubicacion_almacen_id' => $ubicacionId,
+                'estado_calidad' => $estadoLote,
+                'user_recepcion_id' => Auth::id(),
+                'notas' => $data['observaciones'] ?? 'Lote generado automáticamente desde Entregas.',
+                'activo' => true,
+            ]);
+
+            $insumo->stock_actual = (float) $insumo->stock_actual + $cantidad;
             $insumo->save();
         });
 
         return redirect()->route('entregas.index')->with('ok', 'Recepción registrada correctamente.');
+    }
+
+    private function resolverOrdenCompraTecnicaEntrega(Insumo $insumo): ?int
+    {
+        $ordenCompraDesdeLote = LoteInsumo::query()
+            ->where('insumo_id', (int) $insumo->id)
+            ->whereNotNull('orden_compra_id')
+            ->orderByDesc('id')
+            ->value('orden_compra_id');
+
+        if ($ordenCompraDesdeLote) {
+            return (int) $ordenCompraDesdeLote;
+        }
+
+        $ordenCompraDesdeDetalle = DB::table('ordenes_compra_detalles')
+            ->where('insumo_id', (int) $insumo->id)
+            ->orderByDesc('id')
+            ->value('orden_compra_id');
+
+        if ($ordenCompraDesdeDetalle) {
+            return (int) $ordenCompraDesdeDetalle;
+        }
+
+        $proveedorId = (int) ($insumo->proveedor_id ?: 0);
+
+        if ($proveedorId <= 0) {
+            $proveedorId = (int) (DB::table('proveedores')->orderBy('id')->value('id') ?: 0);
+        }
+
+        if ($proveedorId <= 0) {
+            return null;
+        }
+
+        $notaTecnica = 'Orden técnica para registrar entradas sin OC explícita.';
+        $ordenTecnica = OrdenCompra::query()
+            ->where('proveedor_id', $proveedorId)
+            ->where('estado', 'Recibida')
+            ->where('notas', $notaTecnica)
+            ->first();
+
+        if ($ordenTecnica) {
+            return (int) $ordenTecnica->id;
+        }
+
+        $userId = (int) (Auth::id() ?: 0);
+
+        if ($userId <= 0) {
+            $userId = (int) (DB::table('users')->orderBy('id')->value('id') ?: 0);
+        }
+
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $ordenNueva = OrdenCompra::query()->create([
+            'proveedor_id' => $proveedorId,
+            'user_id' => $userId,
+            'fecha_orden' => now(),
+            'fecha_entrega_prevista' => now()->toDateString(),
+            'estado' => 'Recibida',
+            'subtotal' => 0,
+            'impuestos' => 0,
+            'descuentos' => 0,
+            'costo_flete' => 0,
+            'monto_total' => 0,
+            'notas' => $notaTecnica,
+        ]);
+
+        return (int) $ordenNueva->id;
     }
 
     public function revision(Request $request, int $id): RedirectResponse
@@ -150,14 +279,32 @@ class EntregaController extends Controller
     }
 
     /**
-     * @return array{0:string,1:string}
+     * @return array<int>
      */
-    private function parseRevision(string $motivo, string $notas): array
+    private function resolveProveedorIdsForUser($user): array
     {
-        if (str_starts_with($motivo, 'REVISION:')) {
-            return [str_replace('REVISION:', '', $motivo), trim($notas)];
+        $proveedorId = (int) ($user?->proveedor_id ?? 0);
+
+        if ($proveedorId > 0) {
+            return [$proveedorId];
         }
 
-        return ['PENDIENTE', ''];
+        $email = $user?->email;
+
+        if (! $email) {
+            return [];
+        }
+
+        return DB::table('proveedores')
+            ->select('proveedores.id')
+            ->leftJoin('contactos_proveedores', 'contactos_proveedores.proveedor_id', '=', 'proveedores.id')
+            ->where(function ($query) use ($email): void {
+                $query->where('proveedores.email_general', $email)
+                    ->orWhere('contactos_proveedores.email', $email);
+            })
+            ->distinct()
+            ->pluck('proveedores.id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 }

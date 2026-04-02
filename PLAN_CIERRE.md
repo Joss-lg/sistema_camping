@@ -73,129 +73,131 @@ La pagina se considera terminada cuando:
 - Reportes y Dashboard muestran indicadores operativos con filtros por fecha.
 - Pruebas criticas pasan en local antes de despliegue.
 
-## 2) Backlog por modulo (priorizado)
+## 2) Cobertura actual del proyecto (31-03-2026)
 
-### A. Produccion (Prioridad Alta)
-Objetivo: operar el flujo principal de fabricacion.
+Estado general de pruebas:
 
-Tareas:
-- Definir entidades minimas usadas en pantalla: orden_produccion, uso_material, producto_terminado.
-- Implementar en controlador acciones minimas: listar, crear orden, actualizar estado.
-- Implementar validacion de stock antes de registrar consumo.
-- Registrar consumo de material y actualizar stock de material.
-- Construir vista con formulario de alta y tabla de seguimiento.
-- Agregar prueba feature de crear orden y registrar consumo.
+- ✅ 27 tests aprobados (116 assertions)
 
-Criterio de cierre:
-- Se crea una orden.
-- Se registra consumo valido.
-- Si no hay stock suficiente, el sistema bloquea y muestra mensaje claro.
+Cobertura funcional por modulo:
 
-### B. Terminados (Prioridad Alta)
-Objetivo: controlar salida de producto final.
+- ✅ Produccion: crear orden, cambiar estado, registrar consumo y validacion de stock (Feature tests de flujo + automatizacion por eventos).
+- ✅ Terminados: alta de inventario terminado y ajustes basicos con pruebas de flujo.
+- ✅ Trazabilidad: consulta de lote e historial en vista unificada con pruebas.
+- ✅ Reportes: filtros operativos y exportacion CSV con pruebas.
+- ✅ Dashboard: KPIs operativos y acceso por flujo autenticado con pruebas.
+- ✅ Permisos y seguridad: middleware/permisos con pruebas especificas.
+- ✅ Colas/Notificaciones (base): pruebas de hardening para destinatarios correctos e idempotencia diaria de alertas.
+- ✅ Operacion y confiabilidad: comando `ops:health` para validar scheduler, cola, backlog y failed jobs.
+- ✅ Calidad de datos (baseline): comando `data:quality:check` con validaciones de negativos, fechas inconsistentes y pendientes envejecidas.
+- ✅ Resiliencia asincrona (baseline): pruebas unitarias de politicas de retry/backoff para jobs criticos.
 
-Tareas:
-- Implementar listado de productos/lotes terminados.
-- Implementar registro de ingreso de terminados desde una orden finalizada.
-- Implementar ajuste basico de stock de terminado (manual, auditado).
-- Agregar filtro por categoria/estado.
-- Agregar prueba feature de alta y ajuste de stock.
+## 3) Backlog restante enfocado en simulacion real
 
-Criterio de cierre:
-- Se puede registrar terminado y ver stock actualizado.
+### A. Operacion y confiabilidad (Prioridad Alta)
+Objetivo: que las simulaciones largas corran sin intervencion manual.
 
-### C. Trazabilidad (Prioridad Alta)
-Objetivo: seguir el historial de un lote end-to-end.
+Estado actual (ya implementado):
 
-Tareas:
-- Definir consulta principal por numero de lote o ID.
-- Mostrar linea de tiempo con etapas: compra/ingreso, produccion, terminado.
-- Enlazar evidencias minimas (fecha, usuario, observacion).
-- Agregar vista de detalle de lote.
-- Agregar prueba feature de consulta de trazabilidad.
+- `composer dev` ya levanta `schedule:work` y worker de cola.
+- Comando `php artisan ops:health` disponible para validacion operativa diaria.
+- Script `composer sim:gate` agrega puerta de control (`ops:health --strict`, `data:quality:check --strict`, tests).
+
+Tareas pendientes:
+
+- Integrar alerta externa (correo/slack) cuando `ops:health --strict` falle.
+- Definir umbrales por entorno para backlog de cola y ventana de jobs fallidos.
+- Agregar procedimiento de recovery para `failed_jobs` (retry, requeue, descarte controlado).
 
 Criterio de cierre:
-- Un lote devuelve historial coherente en una sola vista.
 
-### D. Reportes (Prioridad Media)
-Objetivo: entregar visibilidad operativa para decisiones.
+- El scheduler corre de forma continua durante toda la simulacion.
+- No quedan jobs fallidos sin atencion.
 
-Tareas:
-- Reporte de compras/entregas por rango de fechas.
-- Reporte de insumos bajo minimo.
-- Reporte de produccion y terminados por periodo.
-- Exportacion simple (CSV) para 1 o 2 reportes clave.
-- Prueba feature de filtro por fechas.
+### B. Calidad de datos de simulacion (Prioridad Alta)
+Objetivo: validar escenarios realistas del dominio camping E2E.
 
-Criterio de cierre:
-- Se pueden filtrar datos reales y exportar al menos un reporte.
+Estado actual (ya implementado):
 
-### E. Dashboard (Prioridad Media)
-Objetivo: resumen ejecutivo diario.
+- Comando `php artisan data:quality:check` disponible para validar integridad base.
 
-Tareas:
-- KPIs minimos: entregas pendientes, insumos bajo minimo, ordenes en curso, terminados del dia.
-- Tarjetas con enlaces a modulo correspondiente.
-- Vista responsive con datos reales.
+Tareas pendientes:
+
+- Poblar seeders con mas familias de terminados (carpas, descanso, cocina, iluminacion, hidratacion, transporte).
+- Incluir ordenes con variacion de demanda (picos y baja rotacion).
+- Simular faltantes de insumo, recepcion parcial y mermas para tensionar el flujo.
 
 Criterio de cierre:
-- Dashboard abre sin errores y todos los KPI muestran datos reales.
 
-### F. Pulido final UX y calidad (Prioridad Media/Baja)
-Objetivo: entrega estable y usable.
+- El sistema soporta escenarios normales y de excepcion con datos representativos.
 
-Tareas:
-- Mensajes de exito/error consistentes en todas las pantallas.
-- Validaciones de formularios homologadas (mismo estilo de errores).
-- Revisar textos y ortografia en vistas.
-- Revisar paginacion/filtros en tablas principales.
-- Pruebas de humo manuales por modulo.
+### C. Cobertura de pruebas de resiliencia (Prioridad Media)
+Objetivo: reducir riesgo de regresiones en ejecucion asincrona.
+
+Estado actual (ya implementado):
+
+- Pruebas de hardening de notificaciones y idempotencia diaria.
+- Pruebas unitarias de politicas de retry/backoff en jobs clave.
+
+Tareas pendientes:
+
+- Agregar pruebas de reintento y fallo transitorio en jobs criticos.
+- Agregar prueba de notificaciones en ventanas de tiempo (evitar spam fuera de idempotencia).
+- Agregar prueba de integracion de scheduler + cola para corrida continua.
 
 Criterio de cierre:
-- Experiencia consistente y sin bloqueos visibles.
 
-## 3) Orden de ejecucion recomendado
+- Se detectan automaticamente fallos de retry, duplicidad y degradacion de cola.
 
-1. Produccion
-2. Terminados
-3. Trazabilidad
-4. Reportes
-5. Dashboard
-6. Pulido final
+### D. UX y operacion diaria (Prioridad Media)
+Objetivo: facilitar uso y soporte en ejecucion real.
 
-## 4) Sprint sugerido (7 a 10 dias)
+Tareas pendientes:
 
-- Dia 1-2: Produccion
-- Dia 3-4: Terminados
-- Dia 5: Trazabilidad
-- Dia 6: Reportes
-- Dia 7: Dashboard
-- Dia 8-10: QA, correcciones, pruebas y despliegue
+- Homologar mensajes de error/exito entre modulos clave.
+- Revisar ortografia/textos y consistencia de etiquetas en vistas.
+- Confirmar paginacion y filtros en tablas de alto volumen.
 
-## 5) Checklist diario de avance
+Criterio de cierre:
 
-- Seleccionar 1 tarea alta y 1 media.
-- Implementar backend + vista minima del bloque.
-- Probar flujo manual completo.
+- Operacion diaria fluida sin bloqueos ni ambiguedad en mensajes.
+
+## 4) Orden de ejecucion recomendado (actualizado)
+
+1. Operacion y confiabilidad (scheduler/cola/monitor)
+2. Calidad de datos de simulacion
+3. Pruebas de resiliencia asincrona
+4. Pulido UX y cierre documental
+
+## 5) Sprint sugerido (5 a 7 dias)
+
+- Dia 1: Scheduler y monitoreo de cola
+- Dia 2-3: Seeders y escenarios E2E de simulacion
+- Dia 4-5: Pruebas de resiliencia y ajustes
+- Dia 6-7: UX, checklist final y corrida de validacion
+
+## 6) Checklist diario de avance (actualizado)
+
+- Ejecutar simulacion corta (30-60 min) con scheduler y cola activos.
+- Revisar jobs fallidos y notificaciones emitidas.
 - Ejecutar pruebas automatizadas.
-- Dejar commit con mensaje claro.
+- Registrar hallazgos y accion correctiva del dia.
 
-## 6) Checklist de pre-despliegue
+## 7) Checklist de pre-despliegue
 
 - php artisan test
 - php artisan migrate:status
+- php artisan schedule:list
+- Confirmar scheduler activo en entorno destino
 - Verificar .env de produccion (APP_ENV, APP_DEBUG, DB, APP_URL)
 - Verificar permisos de storage y bootstrap/cache
-- Configurar colas si aplica
 - Revisar logs sin errores criticos
 
-## 7) Primer paso para hoy (accion inmediata)
+## 8) Proximo paso inmediato (accion de hoy)
 
-Comenzar por Produccion con este mini alcance:
+Ejecutar una simulacion controlada de 1 hora con estos criterios:
 
-- Crear orden de produccion.
-- Cambiar estado (PENDIENTE, EN_PROCESO, FINALIZADA).
-- Registrar consumo de un material.
-- Reflejar impacto de stock.
-
-Cuando este bloque quede listo, recien pasar a Terminados.
+- Cola y scheduler activos todo el periodo.
+- 1 flujo completo de produccion -> terminado -> trazabilidad.
+- 1 escenario de stock bajo con notificacion.
+- Cierre con evidencia: logs, jobs ejecutados y resultado de pruebas.

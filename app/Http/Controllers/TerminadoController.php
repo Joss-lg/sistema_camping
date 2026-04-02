@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OrdenProduccionCompletada;
 use App\Models\InventarioProductoTerminado;
 use App\Models\OrdenProduccion;
 use App\Models\ProductoTerminado;
@@ -20,6 +21,13 @@ class TerminadoController extends Controller
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Terminados'), 403);
 
+        // Limpieza defensiva: evita mostrar terminados de órdenes reabiertas.
+        $this->ocultarTerminadosDeOrdenesNoFinalizadas();
+
+        // Backfill defensivo: si existen órdenes cerradas que no alcanzaron a generar inventario,
+        // se sincronizan al entrar al módulo sin duplicar registros existentes.
+        $this->sincronizarOrdenesFinalizadasSinInventario();
+
         $ubicacionFiltro = $request->integer('ubicacion_almacen_id');
 
         $inventario = InventarioProductoTerminado::query()
@@ -27,7 +35,7 @@ class TerminadoController extends Controller
                 'tipoProducto:id,nombre,slug,stock_minimo_terminado',
                 'unidadMedida:id,nombre',
                 'ubicacionAlmacen:id,nombre,codigo_ubicacion',
-                'productoTerminado:id,numero_lote_produccion,numero_serie,codigo_barras,codigo_qr',
+                'productoTerminado:id,numero_lote_produccion,numero_serie,codigo_barras,codigo_qr,estado,estado_calidad',
             ])
             ->when($ubicacionFiltro > 0, fn ($query) => $query->where('ubicacion_almacen_id', $ubicacionFiltro))
             ->orderByDesc('updated_at')
@@ -56,6 +64,9 @@ class TerminadoController extends Controller
                 'numero_serie' => $item->productoTerminado?->numero_serie,
                 'codigo_barras' => $item->productoTerminado?->codigo_barras,
                 'codigo_qr' => $item->productoTerminado?->codigo_qr,
+                'estado_inventario' => $item->estado,
+                'estado_producto' => $item->productoTerminado?->estado,
+                'estado_calidad' => $item->productoTerminado?->estado_calidad,
             ];
         });
 
@@ -124,8 +135,8 @@ class TerminadoController extends Controller
                 'fecha_finalizacion' => now(),
                 'cantidad_producida' => $cantidadIngreso,
                 'unidad_medida_id' => $orden->unidad_medida_id,
-                'estado' => 'Producido',
-                'estado_calidad' => 'Pendiente Inspeccion',
+                'estado' => ProductoTerminado::ESTADO_PRODUCIDO,
+                'estado_calidad' => ProductoTerminado::ESTADO_CALIDAD_PENDIENTE,
                 'costo_produccion' => (float) ($orden->costo_real ?? $orden->costo_estimado ?? 0),
                 'codigo_barras' => $codigoBarras,
                 'codigo_qr' => $codigoQr,
@@ -148,19 +159,74 @@ class TerminadoController extends Controller
                 'unidad_medida_id' => $orden->unidad_medida_id,
                 'cantidad_reservada' => 0,
                 'fecha_ingreso_almacen' => now()->toDateString(),
-                'estado' => 'En Almacén',
+                'estado' => InventarioProductoTerminado::ESTADO_PENDIENTE_INSPECCION,
                 'precio_unitario' => $precioUnitario,
                 'valor_total_inventario' => round($cantidadIngreso * $precioUnitario, 4),
                 'notas' => sprintf(
-                    'Ingreso inicial generado desde orden #%d. Lote %s',
+                    'Ingreso inicial generado desde orden #%d. Lote %s. Pendiente de aprobación de calidad.',
                     $orden->id,
                     $lote
                 ),
-                'requiere_inspeccion_periodica' => false,
+                'requiere_inspeccion_periodica' => true,
             ]);
         });
 
         return redirect()->route('terminados.index')->with('ok', 'Ingreso de producto terminado registrado correctamente.');
+    }
+
+    public function revisionCalidad(Request $request, ProductoTerminado $productoTerminado): RedirectResponse
+    {
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Terminados', 'editar'), 403);
+
+        $data = $request->validate([
+            'decision' => ['required', 'in:APROBADO,RECHAZADO'],
+            'observaciones_calidad' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $inspectorId = (int) ($request->user()?->id ?? 0);
+        $observaciones = trim((string) ($data['observaciones_calidad'] ?? ''));
+
+        DB::transaction(function () use ($productoTerminado, $data, $inspectorId, $observaciones): void {
+            $producto = ProductoTerminado::query()
+                ->lockForUpdate()
+                ->findOrFail($productoTerminado->id);
+
+            $inventarios = InventarioProductoTerminado::query()
+                ->where('producto_terminado_id', $producto->id)
+                ->lockForUpdate()
+                ->get();
+
+            if ($data['decision'] === 'APROBADO') {
+                $producto->marcarAprobadoPor($inspectorId > 0 ? $inspectorId : null);
+
+                if ($observaciones !== '') {
+                    $producto->observaciones_calidad = $observaciones;
+                    $producto->save();
+                }
+
+                foreach ($inventarios as $inventario) {
+                    $inventario->estado = InventarioProductoTerminado::ESTADO_EN_ALMACEN;
+                    $inventario->notas = trim((string) $inventario->notas . "\n[Aprobado calidad] " . now()->format('Y-m-d H:i'));
+                    $inventario->requiere_inspeccion_periodica = false;
+                    $inventario->save();
+                }
+
+                return;
+            }
+
+            $producto->marcarRechazadoPor($inspectorId > 0 ? $inspectorId : null, $observaciones);
+
+            foreach ($inventarios as $inventario) {
+                $inventario->estado = InventarioProductoTerminado::ESTADO_DESCARTADO;
+                $inventario->notas = trim((string) $inventario->notas . "\n[Rechazado calidad] " . ($observaciones !== '' ? $observaciones : now()->format('Y-m-d H:i')));
+                $inventario->requiere_inspeccion_periodica = false;
+                $inventario->save();
+            }
+        });
+
+        return back()->with('ok', $data['decision'] === 'APROBADO'
+            ? 'Producto aprobado por calidad y habilitado en almacén.'
+            : 'Producto rechazado por calidad y bloqueado para salida.');
     }
 
     public function storeAjuste(Request $request): RedirectResponse
@@ -195,7 +261,9 @@ class TerminadoController extends Controller
         );
 
         $inventario->cantidad_en_almacen = $nuevoStock;
-        $inventario->estado = $nuevoStock > 0 ? 'En Almacén' : 'Descartado';
+        $inventario->estado = $nuevoStock > 0
+            ? (string) $inventario->estado
+            : InventarioProductoTerminado::ESTADO_DESCARTADO;
         $inventario->notas = trim((string) $inventario->notas . "\n" . $notaAjuste);
         $inventario->save();
         $inventario->actualizarValor();
@@ -238,5 +306,44 @@ class TerminadoController extends Controller
         } while (ProductoTerminado::query()->where('numero_lote_produccion', $codigo)->exists());
 
         return $codigo;
+    }
+
+    private function sincronizarOrdenesFinalizadasSinInventario(): void
+    {
+        $ordenesPendientes = OrdenProduccion::query()
+            ->whereIn('estado', OrdenProduccion::ESTADOS_FINALIZADAS)
+            ->where(function ($query): void {
+                $query->doesntHave('productosTerminados')
+                    ->orWhereHas('productosTerminados', function ($subQuery): void {
+                        $subQuery->doesntHave('inventario');
+                    });
+            })
+            ->limit(100)
+            ->get();
+
+        foreach ($ordenesPendientes as $orden) {
+            event(new OrdenProduccionCompletada($orden));
+        }
+    }
+
+    private function ocultarTerminadosDeOrdenesNoFinalizadas(): void
+    {
+        $productoIds = ProductoTerminado::query()
+            ->whereHas('ordenProduccion', function ($query): void {
+                $query->whereNotIn('estado', OrdenProduccion::ESTADOS_FINALIZADAS);
+            })
+            ->pluck('id');
+
+        if ($productoIds->isEmpty()) {
+            return;
+        }
+
+        InventarioProductoTerminado::query()
+            ->whereIn('producto_terminado_id', $productoIds)
+            ->delete();
+
+        ProductoTerminado::query()
+            ->whereIn('id', $productoIds)
+            ->delete();
     }
 }

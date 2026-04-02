@@ -42,4 +42,32 @@ class UpdateOrdenCompraRequest extends FormRequest
             'detalles.*.notas' => ['nullable', 'string'],
         ];
     }
+
+    protected function prepareForValidation(): void
+    {
+        $detalles = $this->input('detalles', []);
+
+        if (! is_array($detalles)) {
+            return;
+        }
+
+        $detallesNormalizados = collect($detalles)
+            ->map(function ($detalle) {
+                return is_array($detalle) ? $detalle : [];
+            })
+            ->filter(function (array $detalle) {
+                return isset($detalle['id'])
+                    || isset($detalle['insumo_id'])
+                    || isset($detalle['unidad_medida_id'])
+                    || isset($detalle['cantidad_solicitada'])
+                    || isset($detalle['precio_unitario'])
+                    || isset($detalle['descuento_porcentaje'])
+                    || isset($detalle['fecha_entrega_esperada_linea'])
+                    || isset($detalle['notas']);
+            })
+            ->values()
+            ->all();
+
+        $this->merge(['detalles' => $detallesNormalizados]);
+    }
 }

@@ -12,6 +12,23 @@ class ProductoTerminado extends Model
 {
     use SoftDeletes;
 
+    public const ESTADO_PRODUCIDO = 'Producido';
+    public const ESTADO_APROBADO = 'Aprobado';
+    public const ESTADO_RECHAZADO = 'Rechazado';
+    public const ESTADO_EMPACADO = 'Empacado';
+
+    public const ESTADO_CALIDAD_PENDIENTE = 'Pendiente Inspección';
+    public const ESTADO_CALIDAD_ACEPTADA = 'Aceptada';
+    public const ESTADO_CALIDAD_RECHAZADA = 'Rechazada';
+
+    /** @var array<int, string> */
+    public const ESTADOS_TRAZABILIDAD = [
+        self::ESTADO_PRODUCIDO,
+        self::ESTADO_APROBADO,
+        self::ESTADO_RECHAZADO,
+        self::ESTADO_EMPACADO,
+    ];
+
     protected $table = 'productos_terminados';
 
     protected $fillable = [
@@ -97,27 +114,27 @@ class ProductoTerminado extends Model
 
     public function scopeProducido($query)
     {
-        return $query->where('estado', 'Producido');
+        return $query->where('estado', self::ESTADO_PRODUCIDO);
     }
 
     public function scopePendienteInspeccion($query)
     {
-        return $query->where('estado', 'Control Calidad Pendiente');
+        return $query->where('estado_calidad', self::ESTADO_CALIDAD_PENDIENTE);
     }
 
     public function scopeAprobados($query)
     {
-        return $query->where('estado', 'Aprobado');
+        return $query->where('estado', self::ESTADO_APROBADO);
     }
 
     public function scopeRechazados($query)
     {
-        return $query->where('estado', 'Rechazado');
+        return $query->where('estado', self::ESTADO_RECHAZADO);
     }
 
     public function scopeEmpacados($query)
     {
-        return $query->where('estado', 'Empacado');
+        return $query->where('estado', self::ESTADO_EMPACADO);
     }
 
     public function scopeTipoProducto($query, $tipoProductoId)
@@ -127,12 +144,12 @@ class ProductoTerminado extends Model
 
     public function scopeCalidadAceptada($query)
     {
-        return $query->where('estado_calidad', 'Aceptada');
+        return $query->where('estado_calidad', self::ESTADO_CALIDAD_ACEPTADA);
     }
 
     public function scopeCalidadRechazada($query)
     {
-        return $query->where('estado_calidad', 'Rechazada');
+        return $query->where('estado_calidad', self::ESTADO_CALIDAD_RECHAZADA);
     }
 
     public function scopePorFecha($query, $desde, $hasta)
@@ -144,30 +161,43 @@ class ProductoTerminado extends Model
 
     public function marcarPendienteInspeccion(): void
     {
-        $this->estado = 'Control Calidad Pendiente';
+        $this->estado = self::ESTADO_PRODUCIDO;
+        $this->estado_calidad = self::ESTADO_CALIDAD_PENDIENTE;
         $this->save();
     }
 
     public function marcarAprobado(): void
     {
-        $this->estado = 'Aprobado';
-        $this->estado_calidad = 'Aceptada';
+        $this->estado = self::ESTADO_APROBADO;
+        $this->estado_calidad = self::ESTADO_CALIDAD_ACEPTADA;
         $this->fecha_inspeccion = now();
         $this->save();
     }
 
+    public function marcarAprobadoPor(?int $userId): void
+    {
+        $this->user_inspeccion_id = $userId;
+        $this->marcarAprobado();
+    }
+
     public function marcarRechazado($observaciones = ''): void
     {
-        $this->estado = 'Rechazado';
-        $this->estado_calidad = 'Rechazada';
+        $this->estado = self::ESTADO_RECHAZADO;
+        $this->estado_calidad = self::ESTADO_CALIDAD_RECHAZADA;
         $this->observaciones_calidad = $observaciones;
         $this->fecha_inspeccion = now();
         $this->save();
     }
 
+    public function marcarRechazadoPor(?int $userId, string $observaciones = ''): void
+    {
+        $this->user_inspeccion_id = $userId;
+        $this->marcarRechazado($observaciones);
+    }
+
     public function marcarEmpacado(): void
     {
-        $this->estado = 'Empacado';
+        $this->estado = self::ESTADO_EMPACADO;
         $this->fecha_empaque = now();
         $this->save();
     }

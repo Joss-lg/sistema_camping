@@ -1,109 +1,221 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-6">
-    {{-- Encabezado --}}
-    <div class="mb-6">
-        <h1 class="text-3xl font-extrabold text-slate-800">Administración de Usuarios y Permisos</h1>
-        <p class="text-slate-500 text-base">Registra nuevos usuarios y define su nivel de acceso por módulo.</p>
+<div class="container mx-auto px-4 py-8 space-y-6">
+    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold text-slate-900">Administracion de Usuarios</h1>
+            <p class="mt-1 text-sm text-slate-500">Crea usuarios, asigna roles y gestiona permisos por modulo.</p>
+        </div>
     </div>
 
-    {{-- ALERTAS --}}
-    @if ($errors->any())
-        <div class="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg mb-5 shadow-sm">
-            <span class="font-bold">Error:</span> {{ $errors->first() }}
-        </div>
-    @endif
-    @if (session('ok'))
-        <div class="bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg mb-5 shadow-sm">
-            {{ session('ok') }}
-        </div>
-    @endif
+    @include('partials.flash-messages')
 
-    {{-- Formulario de Creación --}}
-    <section class="bg-white border border-slate-200 rounded-xl p-6 mb-8 shadow-sm">
-        <h2 class="text-xl font-bold text-slate-800 mb-4">Crear Nuevo Usuario</h2>
-        <form method="POST" action="{{ route('permisos.store') }}">
+    @php
+        $permisosJson = json_encode($permisosPredeterminados, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        $rolInicial = old('rol', $rolesDisponibles[0] ?? '');
+    @endphp
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+        x-data="permisoForm({{ $permisosJson }}, '{{ $rolInicial }}')"
+        x-init="aplicarPermisosPredeterminados(rolSeleccionado)">
+
+        <div class="mb-6 border-b border-slate-100 pb-4">
+            <h2 class="text-lg font-bold text-slate-900">Crear Nuevo Usuario</h2>
+            <p class="mt-1 text-sm text-slate-500">Define rol y permisos base desde este modulo.</p>
+        </div>
+
+        <form method="POST" action="{{ route('permisos.store') }}" class="space-y-6">
             @csrf
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Nombre Completo</label>
-                    <input name="nombre" type="text" value="{{ old('nombre') }}" required placeholder="Ej. Juan Pérez"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all">
+                    <label for="nombre" class="text-sm font-semibold text-slate-700">Nombre Completo</label>
+                    <input id="nombre" name="nombre" type="text" value="{{ old('nombre') }}" required placeholder="Ej. Juan Perez"
+                        class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                 </div>
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Correo Electrónico</label>
-                    <input name="email" type="email" value="{{ old('email') }}" required placeholder="usuario@gmail.com"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all">
+                    <label for="email" class="text-sm font-semibold text-slate-700">Correo Electronico</label>
+                    <input id="email" name="email" type="email" value="{{ old('email') }}" required placeholder="usuario@gmail.com"
+                        class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                 </div>
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Rol de Sistema</label>
-                    <select name="rol" id="rol" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    <label for="rol" class="text-sm font-semibold text-slate-700">Rol de Sistema</label>
+                    <select id="rol" name="rol" required
+                        x-model="rolSeleccionado"
+                        x-on:change="aplicarPermisosPredeterminados($event.target.value)"
+                        class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                         @foreach ($rolesDisponibles as $rol)
-                            <option value="{{ $rol }}" {{ old('rol', $rolesDisponibles[0] ?? '') == $rol ? 'selected' : '' }}>{{ $rol }}</option>
+                            <option value="{{ $rol }}">{{ $rol }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Contraseña</label>
-                    <input name="password" type="password" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                    <label for="password" class="text-sm font-semibold text-slate-700">Contrasena</label>
+                    <input id="password" name="password" type="password" required
+                        class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                 </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-semibold text-slate-600">Confirmar Contraseña</label>
-                    <input name="password_confirmation" type="password" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                <div class="flex flex-col gap-1.5 md:col-span-2">
+                    <label for="password_confirmation" class="text-sm font-semibold text-slate-700">Confirmar Contrasena</label>
+                    <input id="password_confirmation" name="password_confirmation" type="password" required
+                        class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+
+                {{-- Empresa vinculada: visible solo si el rol es PROVEEDOR --}}
+                <div class="flex flex-col gap-1.5 md:col-span-2" x-show="rolSeleccionado === 'PROVEEDOR'" x-cloak>
+                    <label for="proveedor_id" class="text-sm font-semibold text-slate-700">Empresa Vinculada</label>
+                    <select id="proveedor_id" name="proveedor_id"
+                        class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="">Sin vincular</option>
+                        @foreach ($proveedores as $proveedor)
+                            <option value="{{ $proveedor->id }}"
+                                {{ (string) old('proveedor_id') === (string) $proveedor->id ? 'selected' : '' }}>
+                                {{ $proveedor->nombre_comercial ?: $proveedor->razon_social }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('proveedor_id')<p class="text-xs text-red-600 mt-0.5">{{ $message }}</p>@enderror
                 </div>
             </div>
 
-            <div class="border-t border-slate-100 pt-5">
-                <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
-                    <h3 class="text-base font-bold text-slate-800">Permisos por Módulo</h3>
-                    {{-- BOTONES DE SELECCIÓN RÁPIDA (CREAR) --}}
+            <div class="space-y-4 border-t border-slate-100 pt-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h3 class="font-bold text-slate-900">Permisos por Modulo</h3>
+                        <p class="text-sm text-slate-500">
+                            Cargados automaticamente segun el rol.
+                            <span class="font-semibold text-emerald-600" x-text="'(' + rolSeleccionado + ')'"></span>
+                            Puedes ajustarlos manualmente.
+                        </p>
+                    </div>
                     <div class="flex gap-2">
-                        <button type="button" onclick="bulkCheck('create-grid', true)" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-3 rounded border border-slate-300 transition-all">
-                            ✓ Marcar todos
+                        <button type="button" x-on:click="permitirTodo()"
+                            class="rounded-lg border border-emerald-200 bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200">
+                            Permitir todo
                         </button>
-                        <button type="button" onclick="bulkCheck('create-grid', false)" class="text-xs font-bold bg-slate-50 hover:bg-slate-100 text-slate-500 py-1.5 px-3 rounded border border-slate-200 transition-all">
-                            ✕ Quitar todos
+                        <button type="button" x-on:click="limpiarTodo()"
+                            class="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200">
+                            Limpiar
                         </button>
                     </div>
                 </div>
-                
-                <div id="create-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+
+                <div id="create-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     @foreach ($modulos as $modulo)
-                        <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 shadow-sm">
-                            <div class="font-bold text-slate-800 mb-2">{{ $modulo }}</div>
-                            <label class="flex items-center gap-2 text-sm text-slate-600 mb-1.5 cursor-pointer">
-                                <input type="checkbox" name="modulos[]" value="{{ $modulo }}" class="w-4 h-4 text-green-600 rounded"> Puede ver
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                                <input type="checkbox" name="puede_editar[]" value="{{ $modulo }}" class="w-4 h-4 text-green-600 rounded"> Puede editar
-                            </label>
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:bg-slate-100/70">
+                            <div class="mb-3 text-sm font-semibold text-slate-900">{{ $modulo }}</div>
+                            <div class="space-y-2">
+                                <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                                    <input type="checkbox" name="modulos[]" value="{{ $modulo }}"
+                                        x-ref="ver_{{ \Str::slug($modulo, '_') }}"
+                                        class="h-4 w-4 rounded text-emerald-600">
+                                    <span>Puede ver</span>
+                                </label>
+                                <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                                    <input type="checkbox" name="puede_editar[]" value="{{ $modulo }}"
+                                        x-ref="editar_{{ \Str::slug($modulo, '_') }}"
+                                        class="h-4 w-4 rounded text-emerald-600">
+                                    <span>Puede editar</span>
+                                </label>
+                            </div>
                         </div>
                     @endforeach
                 </div>
             </div>
 
-            <div class="mt-8 text-right">
-                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors shadow-md active:scale-95">
+            <div class="flex justify-end gap-3 border-t border-slate-100 pt-4">
+                <a href="{{ route('dashboard') }}" class="rounded-lg border border-slate-300 px-6 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50">
+                    Cancelar
+                </a>
+                <button type="submit" class="rounded-lg bg-emerald-600 px-6 py-2.5 font-semibold text-white shadow-sm transition hover:bg-emerald-700">
                     Registrar Usuario
                 </button>
             </div>
         </form>
     </section>
 
-    {{-- Tabla de Usuarios --}}
-    <section class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <h2 class="text-xl font-bold text-slate-800 p-6 border-b border-slate-100">Usuarios Registrados</h2>
+    <script>
+    function permisoForm(predeterminados, rolInicial) {
+        return {
+            rolSeleccionado: rolInicial,
+            predeterminados: predeterminados,
 
-        {{-- Filtro por rol --}}
-        <div class="px-6 pb-4">
-            <label class="text-sm font-semibold text-slate-600 mr-4">Filtrar por rol:</label>
-            <div class="inline-flex gap-2">
-                <a href="{{ route('permisos.index') }}" class="px-3 py-1 text-xs font-bold rounded-lg transition-all {{ !$rolFiltro ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
+            aplicarPermisosPredeterminados(rol) {
+                this.rolSeleccionado = rol;
+
+                // Normalizar clave del rol igual que PermisoService::normalizeRoleKey
+                const clave = this.normalizarRol(rol);
+                const permisos = this.predeterminados[clave] || { modulos: [], puede_editar: [] };
+
+                // Desmarcar todos primero
+                this.limpiarTodo();
+
+                // Marcar los que correspondan al rol
+                permisos.modulos.forEach(modulo => {
+                    const ref = this.$refs['ver_' + this.slugify(modulo)];
+                    if (ref) ref.checked = true;
+                });
+                permisos.puede_editar.forEach(modulo => {
+                    const ref = this.$refs['editar_' + this.slugify(modulo)];
+                    if (ref) ref.checked = true;
+                });
+            },
+
+            permitirTodo() {
+                document.querySelectorAll('#create-grid input[type=checkbox]').forEach(c => c.checked = true);
+            },
+
+            limpiarTodo() {
+                document.querySelectorAll('#create-grid input[type=checkbox]').forEach(c => c.checked = false);
+            },
+
+            normalizarRol(rol) {
+                let r = rol.toLowerCase().trim()
+                    .replace(/[-\s]+/g, '_')
+                    .replace(/[áàä]/g, 'a')
+                    .replace(/[éèë]/g, 'e')
+                    .replace(/[íìï]/g, 'i')
+                    .replace(/[óòö]/g, 'o')
+                    .replace(/[úùü]/g, 'u')
+                    .replace(/ñ/g, 'n');
+                const mapa = {
+                    'super_admin': 'SUPER_ADMIN',
+                    'super_administrador': 'SUPER_ADMIN',
+                    'administrador': 'SUPER_ADMIN',
+                    'admin': 'SUPER_ADMIN',
+                    'gerente_produccion': 'GERENTE_PRODUCCION',
+                    'gerente_de_produccion': 'GERENTE_PRODUCCION',
+                    'supervisor_almacen': 'SUPERVISOR_ALMACEN',
+                    'supervisor_de_almacen': 'SUPERVISOR_ALMACEN',
+                    'almacen': 'SUPERVISOR_ALMACEN',
+                    'operador': 'OPERADOR',
+                    'proveedor': 'PROVEEDOR',
+                };
+                return mapa[r] ?? r.toUpperCase();
+            },
+
+            slugify(texto) {
+                return texto.toLowerCase().trim()
+                    .replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e')
+                    .replace(/[íìï]/g, 'i').replace(/[óòö]/g, 'o')
+                    .replace(/[úùü]/g, 'u').replace(/ñ/g, 'n')
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_+|_+$/g, '');
+            }
+        };
+    }
+    </script>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-6 py-6">
+            <h2 class="mb-4 text-lg font-bold text-slate-900">Usuarios Registrados</h2>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-slate-600">Filtrar por rol:</span>
+                <a href="{{ route('permisos.index') }}" class="rounded-lg px-3 py-1 text-xs font-bold transition-all {{ !$rolFiltro ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                     Todos
                 </a>
                 @foreach ($rolesDisponibles as $rol)
-                    <a href="{{ route('permisos.index', ['rol' => $rol]) }}" class="px-3 py-1 text-xs font-bold rounded-lg transition-all {{ $rolFiltro == $rol ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
+                    <a href="{{ route('permisos.index', ['rol' => $rol]) }}" class="rounded-lg px-3 py-1 text-xs font-bold transition-all {{ $rolFiltro === $rol ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">
                         {{ $rol }}
                     </a>
                 @endforeach
@@ -111,334 +223,69 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table class="min-w-full border-collapse text-left">
                 <thead>
-                    <tr class="bg-slate-50">
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 border-b">ID</th>
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 border-b">Nombre</th>
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 border-b">Correo</th>
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 border-b">Rol</th>
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 border-b">Estado</th>
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 border-b text-center">Acciones</th>
+                    <tr class="border-b border-slate-100 bg-slate-50">
+                        <th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">ID</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Nombre</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Email</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Rol</th>
+                        <th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Estado</th>
+                        <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Acciones</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @foreach ($registros as $registro)
-                        <tr class="hover:bg-slate-50/50 transition-colors text-sm text-slate-700" data-user-id="{{ $registro['id'] }}" data-user-rol="{{ $registro['rol'] }}">
-                            <td class="p-4 font-bold">#{{ $registro['id'] }}</td>
-                            <td class="p-4">{{ $registro['nombre'] }}</td>
-                            <td class="p-4">{{ $registro['email'] }}</td>
-                            <td class="p-4">
-                                <span class="bg-sky-100 text-sky-700 px-2.5 py-1 rounded-md text-xs font-bold uppercase">
+                <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
+                    @forelse ($registros as $registro)
+                        <tr class="transition-colors hover:bg-slate-50/70">
+                            <td class="px-4 py-3 font-mono text-xs text-slate-400">#{{ $registro['id'] }}</td>
+                            <td class="px-4 py-3 font-semibold text-slate-900">{{ $registro['nombre'] }}</td>
+                            <td class="px-4 py-3 text-slate-600">{{ $registro['email'] }}</td>
+                            <td class="px-4 py-3">
+                                <span class="rounded-md border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-semibold uppercase text-emerald-700">
                                     {{ $registro['rol'] }}
                                 </span>
                             </td>
-                            <td class="p-4">
-                                <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase {{ $registro['estado'] == 'Activo' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                            <td class="px-4 py-3">
+                                <span class="rounded-md px-2.5 py-1 text-xs font-bold uppercase {{ $registro['estado'] === 'Activo' ? 'border border-green-200 bg-green-100 text-green-700' : 'border border-red-200 bg-red-100 text-red-700' }}">
                                     {{ $registro['estado'] }}
                                 </span>
                             </td>
-                            <td class="p-4 text-center">
-                                <div class="flex gap-2 justify-center">
-                                    <button type="button" class="edit-user-btn bg-sky-500 hover:bg-sky-600 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all shadow-sm active:scale-95"
-                                        data-id="{{ $registro['id'] }}"
-                                        data-nombre="{{ $registro['nombre'] }}"
-                                        data-email="{{ $registro['email'] }}"
-                                        data-rol="{{ $registro['rol'] }}"
-                                        data-permisos='@json($registro["permisos"] ?? [])'>
+                            <td class="px-4 py-3">
+                                <div class="flex justify-center gap-3">
+                                    <a href="{{ route('permisos.usuarios.edit', ['id' => $registro['id']]) }}" class="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-700">
                                         Editar
-                                    </button>
-                                    @if($registro['rol'] == 'ALMACEN')
-                                        <button type="button" class="delete-user-btn bg-red-500 hover:bg-red-600 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all shadow-sm active:scale-95"
-                                            data-id="{{ $registro['id'] }}"
-                                            data-nombre="{{ $registro['nombre'] }}">
-                                            Eliminar
-                                        </button>
+                                    </a>
+
+                                    @if ($registro['rol'] !== 'ADMIN')
+                                        <form method="POST" action="{{ route('permisos.usuarios.destroy', ['id' => $registro['id']]) }}" onsubmit="return confirm('¿Eliminar este usuario? No se puede deshacer.')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="inline-flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700">
+                                                Eliminar
+                                            </button>
+                                        </form>
                                     @else
-                                        <form method="POST" action="{{ route('permisos.toggleEstado', ['id' => $registro['id']]) }}" style="display:inline;">
+                                        <form method="POST" action="{{ route('permisos.toggleEstado', ['id' => $registro['id']]) }}">
                                             @csrf
                                             @method('PATCH')
-                                            <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-all shadow-sm active:scale-95">
-                                                {{ $registro['estado'] == 'Activo' ? 'Desactivar' : 'Activar' }}
+                                            <button type="submit" class="inline-flex items-center gap-1 text-sm font-semibold text-amber-600 hover:text-amber-700">
+                                                {{ $registro['estado'] === 'Activo' ? 'Desactivar' : 'Activar' }}
                                             </button>
                                         </form>
                                     @endif
                                 </div>
                             </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center text-sm text-slate-500">
+                                No hay usuarios registrados aun.
+                            </td>
+                        </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
     </section>
 </div>
-
-{{-- MODAL DE ELIMINACIÓN --}}
-<div id="deleteModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1001] justify-center items-center p-4">
-    <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl shadow-black/20">
-        <h2 class="text-xl font-bold text-slate-800 mb-4">Confirmar Eliminación</h2>
-        <p class="text-slate-600 mb-6">¿Estás seguro de que deseas eliminar a <strong id="deleteUserName"></strong>? Esta acción no se puede deshacer.</p>
-        <form id="deleteForm" method="POST">
-            @csrf
-            @method('DELETE')
-            <div class="flex justify-end gap-3">
-                <button type="button" onclick="closeDeleteModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 px-6 rounded-lg transition-colors">
-                    Cancelar
-                </button>
-                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors shadow-md">
-                    Eliminar Usuario
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{{-- MODAL --}}
-<div id="editModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] justify-center items-center p-4">
-    <div class="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl shadow-black/20">
-        <h2 class="text-2xl font-bold text-slate-800 mb-6">Editar Usuario</h2>
-        <form id="editForm" method="POST">
-            @csrf
-            @method('PUT')
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-bold text-slate-700">Nombre Completo</label>
-                    <input name="nombre" id="edit_nombre" type="text" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-bold text-slate-700">Correo Electrónico</label>
-                    <input name="email" id="edit_email" type="email" required class="border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-bold text-slate-700">Rol</label>
-                    <select name="rol" id="edit_rol" class="border border-slate-300 rounded-lg p-2.5 text-sm outline-none">
-                        @foreach ($rolesDisponibles as $rol)
-                            <option value="{{ $rol }}">{{ $rol }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-bold text-slate-700">Contraseña (opcional)</label>
-                    <input name="password" type="password" placeholder="Mínimo 6 caracteres" class="border border-slate-300 rounded-lg p-2.5 text-sm outline-none">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-bold text-slate-700">Confirmar Contraseña</label>
-                    <input name="password_confirmation" type="password" class="border border-slate-300 rounded-lg p-2.5 text-sm outline-none">
-                </div>
-            </div>
-
-            <div class="flex flex-wrap justify-between items-center mt-6 mb-4 gap-4">
-                <h3 class="text-base font-bold text-slate-800">Permisos Actualizados</h3>
-                {{-- BOTONES DE SELECCIÓN RÁPIDA (MODAL) --}}
-                <div class="flex gap-2">
-                    <button type="button" onclick="bulkCheck('edit-grid', true)" class="text-xs font-bold bg-sky-50 hover:bg-sky-100 text-sky-700 py-1.5 px-3 rounded border border-sky-200 transition-all">
-                        ✓ Seleccionar Todo
-                    </button>
-                    <button type="button" onclick="bulkCheck('edit-grid', false)" class="text-xs font-bold bg-slate-50 hover:bg-slate-100 text-slate-500 py-1.5 px-3 rounded border border-slate-200 transition-all">
-                        ✕ Limpiar
-                    </button>
-                </div>
-            </div>
-
-            <div id="edit-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                @foreach ($modulos as $modulo)
-                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 shadow-sm">
-                        <div class="font-bold text-slate-800 mb-2">{{ $modulo }}</div>
-                        <label class="flex items-center gap-2 text-sm text-slate-600 mb-1.5 cursor-pointer">
-                            <input type="checkbox" name="modulos[]" value="{{ $modulo }}" class="check-ver w-4 h-4 text-sky-600 rounded"> Puede ver
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                            <input type="checkbox" name="puede_editar[]" value="{{ $modulo }}" class="check-editar w-4 h-4 text-sky-600 rounded"> Puede editar
-                        </label>
-                    </div>
-                @endforeach
-            </div>
-
-            <div class="mt-8 flex justify-end gap-3">
-                <button type="button" onclick="closeModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 px-6 rounded-lg transition-colors">
-                    Cancelar
-                </button>
-                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors shadow-md">
-                    Guardar Cambios
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-    const modal = document.getElementById('editModal');
-    const deleteModal = document.getElementById('deleteModal');
-    const editForm = document.getElementById('editForm');
-    const deleteForm = document.getElementById('deleteForm');
-
-    const permisosPredeterminados = @json($permisosPredeterminados);
-
-    // Función para aplicar permisos predeterminados a un grid
-    function aplicarPermisosPredeterminados(rol, gridId) {
-        // Limpiar checkboxes
-        document.querySelectorAll(`#${gridId} input[type="checkbox"]`).forEach(cb => cb.checked = false);
-
-        if (permisosPredeterminados[rol]) {
-            const modulos = permisosPredeterminados[rol].modulos;
-            const editar = permisosPredeterminados[rol].puede_editar;
-
-            modulos.forEach(modulo => {
-                const verCheck = document.querySelector(`#${gridId} input[name="modulos[]"][value="${modulo}"]`);
-                if (verCheck) verCheck.checked = true;
-            });
-
-            editar.forEach(modulo => {
-                const editCheck = document.querySelector(`#${gridId} input[name="puede_editar[]"][value="${modulo}"]`);
-                if (editCheck) editCheck.checked = true;
-            });
-        }
-    }
-
-    // Event listener para el select de creación
-    document.getElementById('rol').addEventListener('change', function() {
-        const rol = this.value;
-        aplicarPermisosPredeterminados(rol, 'create-grid');
-    });
-
-    // Event listener para el select de edición
-    document.getElementById('edit_rol').addEventListener('change', function() {
-        const rol = this.value;
-        aplicarPermisosPredeterminados(rol, 'edit-grid');
-    });
-
-    const createGridHasChecked = () => document.querySelectorAll('#create-grid input[type="checkbox"]:checked').length > 0;
-
-    if (!createGridHasChecked()) {
-        aplicarPermisosPredeterminados(document.getElementById('rol').value, 'create-grid');
-    }
-
-    // Función principal para marcar/desmarcar todo por contenedor
-    function bulkCheck(containerId, status) {
-        const container = document.getElementById(containerId);
-        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => cb.checked = status);
-    }
-
-    // EDITAR USUARIO
-    document.querySelectorAll('.edit-user-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.dataset.id;
-            editForm.action = `{{ route('permisos.usuarios.update', ['id' => '__ID__']) }}`.replace('__ID__', id);
-            
-            document.getElementById('edit_nombre').value = this.dataset.nombre;
-            document.getElementById('edit_email').value = this.dataset.email;
-            document.getElementById('edit_rol').value = this.dataset.rol;
-            
-            const permisos = JSON.parse(this.dataset.permisos || '[]');
-            document.querySelectorAll('.check-ver, .check-editar').forEach(cb => cb.checked = false);
-
-            if (permisos.length === 0) {
-                aplicarPermisosPredeterminados(this.dataset.rol, 'edit-grid');
-            } else {
-                permisos.forEach(p => {
-                    const moduloStr = p.modulo;
-                    const verCheck = document.querySelector(`#edit-grid .check-ver[value="${moduloStr}"]`);
-                    const editCheck = document.querySelector(`#edit-grid .check-editar[value="${moduloStr}"]`);
-                    if(verCheck) verCheck.checked = true;
-                    if(editCheck && p.puede_editar) editCheck.checked = true;
-                });
-            }
-
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        });
-    });
-
-    // ELIMINAR USUARIO (con AJAX)
-    document.querySelectorAll('.delete-user-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.dataset.id;
-            const nombre = this.dataset.nombre;
-            const userRow = this.closest('tr');
-            
-            document.getElementById('deleteUserName').textContent = nombre;
-            deleteForm.action = `{{ route('permisos.usuarios.destroy', ['id' => '__ID__']) }}`.replace('__ID__', id);
-            deleteForm.dataset.userId = id;
-            deleteForm.dataset.userRowId = userRow?.getAttribute('data-user-id') || id;
-            
-            deleteModal.classList.remove('hidden');
-            deleteModal.classList.add('flex');
-        });
-    });
-
-    // Manejar submit del formulario de eliminación con AJAX
-    deleteForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const url = this.action;
-        const userId = this.dataset.userId;
-        const userRowId = this.dataset.userRowId;
-        
-        console.log('Eliminar usuario ID:', userId, 'Row ID:', userRowId);
-        
-        // Obtener el token CSRF del formulario
-        const tokenInput = this.querySelector('input[name="_token"]');
-        const csrfToken = tokenInput ? tokenInput.value : '';
-        
-        fetch(url, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => {
-            console.log('Response status:', response.status);
-            if (!response.ok) {
-                return response.text().then(text => {
-                    console.error('Error response:', text);
-                    throw new Error(`HTTP ${response.status}`);
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Delete success:', data);
-            closeDeleteModal();
-            
-            // Remover fila de la tabla usando data-user-id
-            const rowToDelete = document.querySelector(`tr[data-user-id="${userRowId}"]`);
-            
-            if (rowToDelete) {
-                console.log('Found row to delete, animating...');
-                rowToDelete.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
-                rowToDelete.style.opacity = '0';
-                rowToDelete.style.transform = 'translateX(-20px)';
-                setTimeout(() => {
-                    console.log('Removing row from DOM');
-                    rowToDelete.remove();
-                }, 300);
-            } else {
-                console.warn('Row not found with ID:', userRowId);
-            }
-        })
-        .catch(error => {
-            console.error('Delete error:', error);
-            closeDeleteModal();
-            alert('Error al eliminar el usuario: ' + error.message);
-        });
-    });
-
-    function closeModal() { 
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-
-    function closeDeleteModal() {
-        deleteModal.classList.add('hidden');
-        deleteModal.classList.remove('flex');
-    }
-    
-    window.onclick = (e) => { 
-        if(e.target == modal) closeModal();
-        if(e.target == deleteModal) closeDeleteModal();
-    }
-</script>
 @endsection

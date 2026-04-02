@@ -2,18 +2,20 @@
     @php
         $estado = strtoupper($orden->estado->nombre ?? 'PENDIENTE');
         $badgeStyles = match($estado) {
-            'EN_PROCESO' => 'bg-blue-100 text-blue-800 border-blue-200',
-            'FINALIZADA' => 'bg-green-100 text-green-800 border-green-200',
-            default => 'bg-slate-100 text-slate-600 border-slate-200',
+            'EN_PROCESO' => 'lc-badge border-sky-200 bg-sky-50 text-sky-700',
+            'FINALIZADA' => 'lc-badge lc-badge-success',
+            default => 'lc-badge lc-badge-neutral',
         };
     @endphp
-    <tr class="hover:bg-slate-50/50 transition-colors">
-        <td class="p-4 font-mono text-slate-400">#{{ $orden->id }}</td>
-        <td class="p-4">
+    <tr>
+        <td>
+            <div class="font-mono text-xs font-semibold text-slate-500">#{{ $orden->id }}</div>
+        </td>
+        <td>
             <div class="font-bold text-slate-800">{{ $orden->producto?->nombre ?? '-' }}</div>
             <div class="text-[10px] text-slate-400 font-mono">{{ $orden->producto?->sku ?? '' }}</div>
         </td>
-        <td class="p-4">
+        <td>
             <div class="text-xs font-medium text-slate-700">
                 {{ number_format($orden->cantidad_completada, 2) }} / {{ number_format($orden->cantidad, 2) }}
             </div>
@@ -22,110 +24,96 @@
                 <div class="h-full bg-green-500 rounded-full" style="width: {{ $porc }}%"></div>
             </div>
         </td>
-        <td class="p-4">
-            <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold {{ $badgeStyles }}">
+        <td>
+            <span class="{{ $badgeStyles }}">
                 {{ $estado }}
             </span>
         </td>
-        <td class="p-4 text-xs text-slate-700">
-            <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 font-semibold">
+        <td class="text-xs text-slate-700">
+            <span class="inline-flex rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-indigo-700">
                 {{ $orden->etapa_fabricacion_actual ?? 'Corte' }}
             </span>
         </td>
-        <td class="p-4 text-slate-600">{{ $orden->responsable?->nombre ?? '-' }}</td>
-        <td class="p-4 text-[11px] leading-tight text-slate-600">
+        <td>{{ $orden->responsable?->nombre ?? '-' }}</td>
+        <td class="text-[11px] leading-tight text-slate-600">
             <div><span class="font-semibold">Máquina:</span> {{ $orden->maquina_asignada ?: 'Sin asignar' }}</div>
             <div class="mt-1"><span class="font-semibold">Turno:</span> {{ $orden->turno_asignado ?: 'Sin turno' }}</div>
         </td>
-        <td class="p-4 text-[11px] leading-tight text-slate-500">
+        <td class="text-[11px] leading-tight text-slate-500">
             <div><span class="font-semibold uppercase text-[9px] text-slate-400">Inicio:</span> {{ optional($orden->fecha_inicio)->format('d/m/y H:i') ?? '-' }}</div>
             <div class="mt-1"><span class="font-semibold uppercase text-[9px] text-slate-400">Esper:</span> {{ optional($orden->fecha_esperada)->format('d/m/y H:i') ?? '-' }}</div>
         </td>
-        <td class="p-4">
-            @if ($orden->usosMaterial->isEmpty())
-                <span class="text-slate-300 italic text-xs">Sin registros</span>
+        <td>
+            @if (($orden->materialesPlanificados ?? collect())->isEmpty() && $orden->usosMaterial->isEmpty())
+                <span class="text-slate-400 italic text-xs">Sin registros</span>
             @else
                 @php $mermaAlta = (float) ($orden->merma_porcentaje ?? 0) >= 8; @endphp
-                <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-2 max-h-32 overflow-y-auto shadow-inner">
-                    <div class="text-[10px] font-semibold {{ $mermaAlta ? 'text-red-700' : 'text-slate-600' }}">
+                <div class="lc-scrollbar max-h-36 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-2.5 shadow-inner">
+                    <div class="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ $mermaAlta ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-600' }}">
                         Merma: {{ number_format((float) ($orden->merma_total ?? 0), 2) }} ({{ number_format((float) ($orden->merma_porcentaje ?? 0), 2) }}%)
                     </div>
-                    @foreach ($orden->usosMaterial as $uso)
-                        <div class="text-[10px] border-b border-slate-100 last:border-0 pb-1">
-                            <div class="font-bold text-slate-700">{{ $uso->material?->nombre }}</div>
-                            <div class="flex justify-between text-slate-500">
-                                <span>Uso: {{ number_format($uso->cantidad_usada, 2) }}</span>
-                                @if($uso->cantidad_merma > 0)
-                                    <span class="text-amber-600">M: {{ number_format($uso->cantidad_merma, 2) }}</span>
-                                @endif
+
+                    @if (($orden->materialesPlanificados ?? collect())->isNotEmpty())
+                        @foreach ($orden->materialesPlanificados as $material)
+                            <div class="rounded-lg border border-slate-100 bg-white p-1.5 text-[10px] shadow-sm">
+                                <div class="font-bold text-slate-700">{{ $material->nombre }}</div>
+                                <div class="mt-1 flex flex-wrap items-center gap-1.5 text-slate-500">
+                                    <span class="rounded-full bg-slate-100 px-1.5 py-0.5">Plan: {{ number_format($material->cantidad_planificada, 2) }}</span>
+                                    <span class="rounded-full bg-sky-50 px-1.5 py-0.5 text-sky-700">Uso: {{ number_format($material->cantidad_consumida, 2) }}</span>
+                                    @if($material->cantidad_merma > 0)
+                                        <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">M: {{ number_format($material->cantidad_merma, 2) }}</span>
+                                    @endif
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    @else
+                        @foreach ($orden->usosMaterial as $uso)
+                            <div class="rounded-lg border border-slate-100 bg-white p-1.5 text-[10px] shadow-sm">
+                                <div class="font-bold text-slate-700">{{ $uso->material?->nombre }}</div>
+                                <div class="mt-1 flex items-center gap-1.5 text-slate-500">
+                                    <span class="rounded-full bg-sky-50 px-1.5 py-0.5 text-sky-700">Uso: {{ number_format($uso->cantidad_usada, 2) }}</span>
+                                    @if($uso->cantidad_merma > 0)
+                                        <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">M: {{ number_format($uso->cantidad_merma, 2) }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    @endif
                 </div>
             @endif
         </td>
         @if ($canManage)
-            <td class="p-4 bg-slate-50/50">
-                <div class="flex flex-col gap-1.5">
+            <td class="bg-slate-50/80">
+                <div class="flex flex-col gap-2">
                     @if ($orden->bloqueada_aprobacion)
-                        <div class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] text-amber-700">
                             Bloqueada por aprobacion pendiente
                             @if($orden->etapa_pendiente_aprobacion)
                                 : {{ $orden->etapa_pendiente_aprobacion }}
                             @endif
                         </div>
                     @endif
-                    <form method="POST" action="{{ route('produccion.update-estado', $orden->id) }}" class="flex flex-col gap-1.5">
-                        @csrf
-                        @method('PATCH')
-                        <select name="etapa_fabricacion_actual" class="text-[10px] p-1 border border-slate-300 rounded bg-white" @disabled($orden->bloqueada_aprobacion)>
-                            @foreach (['Corte', 'Costura', 'Ensamblado', 'Acabado'] as $etapaFabricacion)
-                                <option value="{{ $etapaFabricacion }}" @selected(($orden->etapa_fabricacion_actual ?? 'Corte') === $etapaFabricacion)>{{ strtoupper($etapaFabricacion) }}</option>
-                            @endforeach
-                        </select>
-                        <select name="estado" class="text-[10px] p-1 border border-slate-300 rounded bg-white" @disabled($orden->bloqueada_aprobacion)>
-                            <option value="PENDIENTE" @selected($estado === 'PENDIENTE')>PENDIENTE</option>
-                            <option value="EN_PROCESO" @selected($estado === 'EN_PROCESO')>EN PROCESO</option>
-                            <option value="FINALIZADA" @selected($estado === 'FINALIZADA')>FINALIZADA</option>
-                        </select>
-                        <input type="number" name="cantidad_completada" min="0" step="0.01" 
-                            value="{{ number_format($orden->cantidad_completada, 2, '.', '') }}"
-                            class="text-[10px] p-1 border border-slate-300 rounded focus:ring-1 focus:ring-green-400 outline-none"
-                            @disabled($orden->bloqueada_aprobacion)
-                            placeholder="Finalizada">
-                        <button type="submit" class="bg-slate-800 text-white text-[9px] font-bold py-1 rounded hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed" @disabled($orden->bloqueada_aprobacion)>ACTUALIZAR</button>
-                    </form>
-
-                    <form method="POST" action="{{ route('produccion.update-asignacion', $orden->id) }}" class="flex flex-col gap-1.5">
-                        @csrf
-                        @method('PATCH')
-                        <select name="responsable_id" class="text-[10px] p-1 border border-slate-300 rounded bg-white" required>
-                            <option value="">Operario</option>
-                            @foreach ($usuarios ?? [] as $usuario)
-                                <option value="{{ $usuario->id }}" @selected((string) $orden->responsable?->id === (string) $usuario->id)>{{ $usuario->nombre }}</option>
-                            @endforeach
-                        </select>
-                        <input type="text" name="maquina_asignada" value="{{ $orden->maquina_asignada }}" placeholder="Máquina" class="text-[10px] p-1 border border-slate-300 rounded">
-                        <select name="turno_asignado" class="text-[10px] p-1 border border-slate-300 rounded bg-white">
-                            <option value="">Sin turno</option>
-                            <option value="Manana" @selected(($orden->turno_asignado ?? '') === 'Manana')>Mañana</option>
-                            <option value="Tarde" @selected(($orden->turno_asignado ?? '') === 'Tarde')>Tarde</option>
-                            <option value="Noche" @selected(($orden->turno_asignado ?? '') === 'Noche')>Noche</option>
-                        </select>
-                        <button type="submit" class="bg-indigo-600 text-white text-[9px] font-bold py-1 rounded hover:bg-indigo-700 transition-colors">ASIGNAR TAREA</button>
-                    </form>
-                    
-                    @if ($estado !== 'FINALIZADA' && $estado !== 'CANCELADA')
-                        <form method="POST" action="{{ route('produccion.cancelar', $orden->id) }}" 
-                              onsubmit="return confirm('¿Deseas cancelar esta orden? Se liberarán todos los materiales reservados.')">
-                            @csrf
-                            <button type="submit" class="w-full bg-red-600 text-white text-[9px] font-bold py-1 rounded hover:bg-red-700 transition-colors">CANCELAR</button>
-                        </form>
-                    @endif
+                    <a href="{{ route('produccion.seguimiento', $orden->id) }}"
+                       class="inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-indigo-700 transition hover:-translate-y-0.5 hover:bg-indigo-100">
+                        Gestionar orden
+                    </a>
+                    <span class="text-[10px] leading-relaxed text-slate-500">Mover etapa, estado, asignación, consumo e historial en la vista detallada.</span>
                 </div>
             </td>
         @endif
     </tr>
 @empty
-    <tr><td colspan="10" class="text-center text-slate-400 py-6">Sin órdenes registradas.</td></tr>
+    <tr>
+        <td colspan="{{ $canManage ? 10 : 9 }}">
+            <div class="lc-empty-state my-4">
+                <div class="lc-empty-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-7 w-7">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 21V8.25l3-2.25 3 2.25V21m0-12.75 3-2.25 3 2.25V21m0-12.75 3-2.25 3 2.25V21" />
+                    </svg>
+                </div>
+                <div class="lc-empty-title">Sin órdenes registradas</div>
+                <p class="lc-empty-copy">Crea una orden o ajusta el filtro de responsable para volver a poblar el tablero operativo.</p>
+            </div>
+        </td>
+    </tr>
 @endforelse

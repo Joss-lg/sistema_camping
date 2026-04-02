@@ -205,21 +205,32 @@
                         <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-center w-16">ID</th>
                         <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500">Producto</th>
                         <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500">SKU</th>
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500">Material</th>
-                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500">Cantidad base</th>
+                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500">Materiales de receta</th>
                         <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-center">Activa</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @forelse ($recetas as $linea)
+                    @forelse ($recetas as $receta)
                         <tr class="hover:bg-slate-50/50 transition-colors text-sm text-slate-700">
-                            <td class="p-4 text-center font-mono text-xs text-slate-400">#{{ $linea->id }}</td>
-                            <td class="p-4 font-bold text-slate-800">{{ $linea->producto?->nombre ?? '-' }}</td>
-                            <td class="p-4 italic text-slate-500">{{ $linea->producto?->sku ?? '-' }}</td>
-                            <td class="p-4">{{ $linea->material?->nombre ?? '-' }}</td>
-                            <td class="p-4 font-medium">{{ rtrim(rtrim(number_format((float) $linea->cantidad_base, 4), '0'), '.') }}</td>
+                            <td class="p-4 text-center font-mono text-xs text-slate-400">#{{ $receta->id }}</td>
+                            <td class="p-4 font-bold text-slate-800">{{ $receta->producto?->nombre ?? '-' }}</td>
+                            <td class="p-4 italic text-slate-500">{{ $receta->producto?->sku ?? '-' }}</td>
+                            <td class="p-4">
+                                @if(($receta->materiales ?? collect())->isNotEmpty())
+                                    <ul class="space-y-1">
+                                        @foreach ($receta->materiales as $material)
+                                            <li class="text-slate-700">
+                                                {{ $material->nombre ?? '-' }}
+                                                <span class="text-slate-500">x {{ rtrim(rtrim(number_format((float) $material->cantidad_base, 4), '0'), '.') }}</span>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                @else
+                                    <span class="text-slate-400">-</span>
+                                @endif
+                            </td>
                             <td class="p-4 text-center">
-                                @if($linea->activo)
+                                @if($receta->activo)
                                     <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                         <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Si
                                     </span>
@@ -232,7 +243,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="p-8 text-center text-slate-500 italic">
+                            <td colspan="5" class="p-8 text-center text-slate-500 italic">
                                 Aún no hay líneas de materiales registradas.
                             </td>
                         </tr>

@@ -151,7 +151,8 @@ class LoteInsumo extends Model
      */
     public function cantidadDisponible(): float
     {
-        return $this->cantidad_en_stock - $this->cantidad_consumida;
+        // cantidad_en_stock ya representa el remanente actual del lote.
+        return max(0, (float) $this->cantidad_en_stock);
     }
 
     /**

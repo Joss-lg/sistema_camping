@@ -19,9 +19,6 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             return;
         }
 
-        // Etapas para Mochila
-        EtapaProduccionPlantilla::truncate();
-
         // Mochila workflow
         EtapaProduccionPlantilla::create([
             'nombre' => 'Corte de Tela',

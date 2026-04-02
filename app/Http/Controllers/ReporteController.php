@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ConfiguracionSistema;
 use App\Models\Insumo;
 use App\Models\MovimientoInventario;
+use App\Models\OrdenCompra;
 use App\Models\OrdenProduccion;
 use App\Models\ProductoTerminado;
 use App\Models\ReporteGenerado;
@@ -24,30 +25,9 @@ class ReporteController extends Controller
 
         [$from, $to] = $this->resolverRango($request);
 
-        $entregas = MovimientoInventario::query()
-            ->with(['insumo.proveedor:id,nombre_comercial,razon_social'])
-            ->where('tipo_movimiento', MovimientoInventario::TIPO_ENTRADA)
-            ->whereBetween('fecha_movimiento', [$from . ' 00:00:00', $to . ' 23:59:59'])
-            ->orderByDesc('fecha_movimiento')
-            ->limit(200)
-            ->get()
-            ->map(function (MovimientoInventario $mov): object {
-                [$estadoRevision] = $this->parseRevision((string) $mov->motivo);
-
-                return (object) [
-                    'id' => $mov->id,
-                    'fecha_entrega' => $mov->fecha_movimiento,
-                    'proveedor' => (object) [
-                        'nombre' => $mov->insumo?->proveedor?->nombre_comercial ?: $mov->insumo?->proveedor?->razon_social,
-                    ],
-                    'material' => (object) [
-                        'nombre' => $mov->insumo?->nombre,
-                    ],
-                    'cantidad_entregada' => (float) $mov->cantidad,
-                    'estado_calidad' => $mov->motivo ?: 'ACEPTADO',
-                    'estado_revision' => $estadoRevision,
-                ];
-            });
+        $entregas = $this->obtenerEntregasPorRango($from, $to)
+            ->take(200)
+            ->values();
 
         $ordenesProduccion = OrdenProduccion::query()
             ->with('tipoProducto:id,nombre,slug')
@@ -96,18 +76,15 @@ class ReporteController extends Controller
                 ];
             });
 
-        $insumosBajo = Insumo::query()
-            ->with(['categoriaInsumo:id,nombre', 'unidadMedida:id,nombre'])
-            ->whereRaw('stock_actual <= stock_minimo')
-            ->orderByRaw('stock_actual - stock_minimo asc')
-            ->limit(100)
-            ->get()
+        $insumosBajo = $this->obtenerInsumosBajoConEntrante(100)
             ->map(fn (Insumo $insumo): object => (object) [
                 'nombre' => $insumo->nombre,
                 'categoria' => (object) ['nombre' => $insumo->categoriaInsumo?->nombre],
                 'unidad' => (object) ['nombre' => $insumo->unidadMedida?->nombre],
                 'stock' => (float) $insumo->stock_actual,
                 'stock_minimo' => (float) $insumo->stock_minimo,
+                'stock_entrante_confirmado' => (float) ($insumo->stock_entrante_confirmado ?? 0),
+                'stock_proyectado' => (float) $insumo->stock_actual + (float) ($insumo->stock_entrante_confirmado ?? 0),
             ]);
 
         $statsEntregas = $entregas->count();
@@ -207,20 +184,14 @@ class ReporteController extends Controller
     private function resolverDatasetExportacion(string $type, string $from, string $to): array
     {
         if ($type === 'entregas') {
-            $data = MovimientoInventario::query()
-                ->with(['insumo:id,nombre', 'insumo.proveedor:id,nombre_comercial,razon_social'])
-                ->where('tipo_movimiento', MovimientoInventario::TIPO_ENTRADA)
-                ->whereBetween('fecha_movimiento', [$from . ' 00:00:00', $to . ' 23:59:59'])
-                ->orderByDesc('fecha_movimiento')
-                ->get();
-
-            $rows = $data->map(fn (MovimientoInventario $mov): array => [
-                $mov->id,
-                optional($mov->fecha_movimiento)->format('Y-m-d H:i:s'),
-                $mov->insumo?->proveedor?->nombre_comercial ?: $mov->insumo?->proveedor?->razon_social,
-                $mov->insumo?->nombre,
-                (float) $mov->cantidad,
-                (string) ($mov->motivo ?: 'ACEPTADO'),
+            $rows = $this->obtenerEntregasPorRango($from, $to)
+                ->map(fn (object $entrega): array => [
+                $entrega->id,
+                optional($entrega->fecha_entrega)->format('Y-m-d H:i:s'),
+                $entrega->proveedor?->nombre,
+                $entrega->material?->nombre,
+                (float) $entrega->cantidad_entregada,
+                (string) $entrega->estado_calidad,
             ])->all();
 
             return [['id', 'fecha_entrega', 'proveedor', 'material', 'cantidad', 'calidad'], $rows];
@@ -252,22 +223,20 @@ class ReporteController extends Controller
         }
 
         if ($type === 'insumos-bajo') {
-            $data = Insumo::query()
-                ->with(['categoriaInsumo:id,nombre', 'unidadMedida:id,nombre'])
-                ->whereRaw('stock_actual <= stock_minimo')
-                ->orderByRaw('stock_actual - stock_minimo asc')
-                ->get();
+            $data = $this->obtenerInsumosBajoConEntrante();
 
             $rows = $data->map(fn (Insumo $insumo): array => [
                 $insumo->id,
                 $insumo->nombre,
                 $insumo->categoriaInsumo?->nombre,
                 (float) $insumo->stock_actual,
+                (float) ($insumo->stock_entrante_confirmado ?? 0),
+                (float) $insumo->stock_actual + (float) ($insumo->stock_entrante_confirmado ?? 0),
                 (float) $insumo->stock_minimo,
                 $insumo->unidadMedida?->nombre,
             ])->all();
 
-            return [['insumo_id', 'insumo', 'categoria', 'stock_actual', 'stock_minimo', 'unidad'], $rows];
+            return [['insumo_id', 'insumo', 'categoria', 'stock_actual', 'stock_entrante_confirmado', 'stock_proyectado', 'stock_minimo', 'unidad'], $rows];
         }
 
         $rows = ProductoTerminado::query()
@@ -303,6 +272,144 @@ class ReporteController extends Controller
         );
 
         return max(1, (int) ($config->valor_tipado ?? 30));
+    }
+
+    /**
+     * @return Collection<int, object>
+     */
+    private function obtenerEntregasPorRango(string $from, string $to): Collection
+    {
+        $entregasDesdeOrdenes = OrdenCompra::query()
+            ->with([
+                'proveedor:id,nombre_comercial,razon_social',
+                'detalles.insumo:id,nombre',
+            ])
+            ->whereNotNull('fecha_entrega_real')
+            ->whereDate('fecha_entrega_real', '>=', $from)
+            ->whereDate('fecha_entrega_real', '<=', $to)
+            ->where(function ($query): void {
+                $query->whereRaw('LOWER(TRIM(estado)) = ?', ['recibida'])
+                    ->orWhereHas('detalles', function ($detalleQuery): void {
+                        $detalleQuery
+                            ->where('cantidad_recibida', '>', 0)
+                            ->orWhere('cantidad_aceptada', '>', 0);
+                    });
+            })
+            ->orderByDesc('fecha_entrega_real')
+            ->get()
+            ->flatMap(function (OrdenCompra $orden): Collection {
+                $ordenMarcadaComoRecibida = strcasecmp(trim((string) $orden->estado), 'Recibida') === 0;
+
+                return $orden->detalles
+                    ->filter(function ($detalle) use ($ordenMarcadaComoRecibida): bool {
+                        return $ordenMarcadaComoRecibida
+                            || (float) $detalle->cantidad_recibida > 0
+                            || (float) $detalle->cantidad_aceptada > 0;
+                    })
+                    ->map(function ($detalle) use ($orden, $ordenMarcadaComoRecibida): object {
+                        [$estadoRevision] = $this->parseRevision((string) ($detalle->notas_recepcion ?: $detalle->estado_linea));
+
+                        $cantidadEntregada = (float) ($detalle->cantidad_aceptada ?: $detalle->cantidad_recibida ?: 0);
+
+                        if ($cantidadEntregada <= 0 && $ordenMarcadaComoRecibida) {
+                            $cantidadEntregada = (float) $detalle->cantidad_solicitada;
+                        }
+
+                        $estadoCalidad = (string) ($detalle->estado_linea ?: '');
+                        if ($estadoCalidad === '' || ($ordenMarcadaComoRecibida && $estadoCalidad === 'Pendiente')) {
+                            $estadoCalidad = 'RECIBIDA';
+                        }
+
+                        return (object) [
+                            'id' => 'OC-' . $orden->id . '-' . $detalle->id,
+                            'fecha_entrega' => $orden->fecha_entrega_real,
+                            'proveedor' => (object) [
+                                'nombre' => $orden->proveedor?->nombre_comercial ?: $orden->proveedor?->razon_social,
+                            ],
+                            'material' => (object) [
+                                'nombre' => $detalle->insumo?->nombre,
+                            ],
+                            'cantidad_entregada' => $cantidadEntregada,
+                            'estado_calidad' => $estadoCalidad,
+                            'estado_revision' => $estadoRevision,
+                        ];
+                    });
+            });
+
+        $entregasFallback = MovimientoInventario::query()
+            ->with([
+                'insumo.proveedor:id,nombre_comercial,razon_social',
+                'ordenCompra:id,fecha_entrega_real',
+            ])
+            ->where('tipo_movimiento', MovimientoInventario::TIPO_ENTRADA)
+            ->where(function ($query): void {
+                $query->whereNull('orden_compra_id')
+                    ->orWhereHas('ordenCompra', function ($ordenQuery): void {
+                        $ordenQuery->whereNull('fecha_entrega_real');
+                    });
+            })
+            ->whereBetween('fecha_movimiento', [$from . ' 00:00:00', $to . ' 23:59:59'])
+            ->orderByDesc('fecha_movimiento')
+            ->get()
+            ->map(function (MovimientoInventario $mov): object {
+                [$estadoRevision] = $this->parseRevision((string) $mov->motivo);
+
+                return (object) [
+                    'id' => $mov->id,
+                    'fecha_entrega' => $mov->fecha_movimiento,
+                    'proveedor' => (object) [
+                        'nombre' => $mov->insumo?->proveedor?->nombre_comercial ?: $mov->insumo?->proveedor?->razon_social,
+                    ],
+                    'material' => (object) [
+                        'nombre' => $mov->insumo?->nombre,
+                    ],
+                    'cantidad_entregada' => (float) $mov->cantidad,
+                    'estado_calidad' => $mov->motivo ?: 'ACEPTADO',
+                    'estado_revision' => $estadoRevision,
+                ];
+            });
+
+        return $entregasDesdeOrdenes
+            ->concat($entregasFallback)
+            ->sortByDesc(fn (object $entrega) => optional($entrega->fecha_entrega)?->getTimestamp() ?? 0)
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, Insumo>
+     */
+    private function obtenerInsumosBajoConEntrante(?int $limit = null): Collection
+    {
+        $insumos = Insumo::query()
+            ->with(['categoriaInsumo:id,nombre', 'unidadMedida:id,nombre'])
+            ->withSum([
+                'ordenesCompraDetalles as stock_entrante_confirmado' => function ($subQuery): void {
+                    $subQuery->whereHas('ordenCompra', function ($ordenCompraQuery): void {
+                        $ordenCompraQuery->where('estado', 'Confirmada');
+                    });
+                },
+            ], 'cantidad_solicitada')
+            ->orderBy('id')
+            ->get();
+
+        $bajoStock = $insumos
+            ->filter(function (Insumo $insumo): bool {
+                $stockProyectado = (float) $insumo->stock_actual + (float) ($insumo->stock_entrante_confirmado ?? 0);
+
+                return $stockProyectado <= (float) $insumo->stock_minimo;
+            })
+            ->sortBy(function (Insumo $insumo): float {
+                $stockProyectado = (float) $insumo->stock_actual + (float) ($insumo->stock_entrante_confirmado ?? 0);
+
+                return $stockProyectado - (float) $insumo->stock_minimo;
+            })
+            ->values();
+
+        if (is_int($limit) && $limit > 0) {
+            return $bajoStock->take($limit)->values();
+        }
+
+        return $bajoStock;
     }
 
     /**

@@ -80,9 +80,14 @@ class CalcularCostosPromedioJob implements ShouldQueue
         if ($cantidadActualizada > 0) {
             $usuarios = User::query()
                 ->select(['id'])
-                ->whereHas('roles', function ($query) {
-                    $query->whereIn('slug', ['gerente-compras', 'admin'])
-                        ->orWhereIn('name', ['gerente de compras', 'admin']);
+                ->whereHas('role', function ($query) {
+                    $query->whereIn('slug', ['super_admin', 'gerente_produccion', 'gerente_compras', 'gerente-compras'])
+                        ->orWhereIn('nombre', [
+                            'Super Administrador',
+                            'Gerente de Producción',
+                            'Gerente de Produccion',
+                            'Gerente de Compras',
+                        ]);
                 })
                 ->get();
 

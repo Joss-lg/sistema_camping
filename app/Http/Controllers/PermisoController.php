@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Permission;
+use App\Models\Proveedor;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\PermisoService;
@@ -86,7 +87,9 @@ class PermisoController extends Controller
             ->values()
             ->all();
 
-        return view('permisos.index', compact('modulos', 'registros', 'rolFiltro', 'permisosPredeterminados', 'rolesDisponibles'));
+        $proveedores = Proveedor::query()->orderBy('razon_social')->get(['id', 'razon_social', 'nombre_comercial']);
+
+        return view('permisos.index', compact('modulos', 'registros', 'rolFiltro', 'permisosPredeterminados', 'rolesDisponibles', 'proveedores'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -98,6 +101,7 @@ class PermisoController extends Controller
             'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6', 'confirmed'],
             'rol' => ['required', 'string', 'max:100'],
+            'proveedor_id' => ['nullable', 'exists:proveedores,id'],
             'modulos' => ['nullable', 'array'],
             'modulos.*' => ['string', 'max:100'],
             'puede_editar' => ['nullable', 'array'],
@@ -119,6 +123,7 @@ class PermisoController extends Controller
             'email' => $data['email'],
             'password' => $data['password'],
             'role_id' => $role->id,
+            'proveedor_id' => $request->filled('proveedor_id') ? (int) $request->input('proveedor_id') : null,
             'activo' => true,
         ]);
 
@@ -138,6 +143,65 @@ class PermisoController extends Controller
         return back()->with('ok', 'Estado de usuario actualizado correctamente.');
     }
 
+    public function edit(Request $request, int $id): View
+    {
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
+
+        $usuario = User::query()->with('role')->findOrFail($id);
+
+        $modulos = Permission::query()
+            ->select('modulo')
+            ->distinct()
+            ->orderBy('modulo')
+            ->pluck('modulo')
+            ->values()
+            ->all();
+
+        $modulos = collect(array_merge(PermisoService::modulosDisponibles(), $modulos))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $permisosPredeterminados = PermisoService::getPermisosPredeterminados();
+
+        $rolesDisponibles = Role::query()
+            ->orderBy('id')
+            ->get(['nombre', 'slug'])
+            ->map(fn (Role $role): string => PermisoService::normalizeRoleKey((string) ($role->slug ?: $role->nombre)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($rolesDisponibles)) {
+            $rolesDisponibles = array_keys($permisosPredeterminados);
+        }
+
+        $permisosActuales = $usuario->role_id
+            ? Permission::query()
+                ->where('role_id', $usuario->role_id)
+                ->get(['modulo', 'puede_editar'])
+                ->keyBy('modulo')
+            : collect();
+
+        $proveedores = Proveedor::query()->orderBy('razon_social')->get(['id', 'razon_social', 'nombre_comercial']);
+
+        $rolActual = PermisoService::normalizeRoleKey(
+            (string) ($usuario->role?->slug ?: ($usuario->role?->nombre ?? ''))
+        );
+
+        return view('permisos.edit', compact(
+            'usuario',
+            'modulos',
+            'permisosPredeterminados',
+            'rolesDisponibles',
+            'permisosActuales',
+            'proveedores',
+            'rolActual',
+        ));
+    }
+
     public function update(Request $request, int $id): RedirectResponse
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
@@ -148,11 +212,13 @@ class PermisoController extends Controller
             'nombre' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'rol' => ['required', 'string', 'max:100'],
+            'proveedor_id' => ['nullable', 'exists:proveedores,id'],
             'password' => ['nullable', 'string', 'min:6', 'confirmed'],
             'modulos' => ['nullable', 'array'],
             'modulos.*' => ['string', 'max:100'],
             'puede_editar' => ['nullable', 'array'],
             'puede_editar.*' => ['string', 'max:100'],
+            'activo' => ['nullable', 'boolean'],
         ]);
 
         $role = PermisoService::resolveRoleByInput((string) $data['rol']);
@@ -161,11 +227,13 @@ class PermisoController extends Controller
             return back()->withErrors(['rol' => 'Rol no encontrado.'])->withInput();
         }
 
-        DB::transaction(function () use ($user, $data, $role): void {
+        DB::transaction(function () use ($request, $user, $data, $role): void {
             $payload = [
                 'name' => $data['nombre'],
                 'email' => $data['email'],
                 'role_id' => $role->id,
+                'proveedor_id' => $request->filled('proveedor_id') ? (int) $request->input('proveedor_id') : null,
+                'activo' => $request->boolean('activo', (bool) $user->activo),
             ];
 
             if (! empty($data['password'])) {

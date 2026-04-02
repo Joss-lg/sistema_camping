@@ -10,140 +10,162 @@
         $access = $access ?? ['produccion' => false];
         $ultimasEntregas = $ultimasEntregas ?? collect();
         $ultimasOrdenes = $ultimasOrdenes ?? collect();
+        $tablas = [
+            ['titulo' => 'Ultimas entregas', 'data' => $ultimasEntregas, 'tipo' => 'entregas'],
+            ['titulo' => 'Ultimas ordenes de produccion', 'data' => $ultimasOrdenes, 'tipo' => 'ordenes'],
+        ];
     @endphp
 
-    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-        <div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard Operativo</h1>
-            <p class="text-slate-500 mt-2 max-w-[780px] text-base">
-                Vista consolidada para la operación de productos de acampar, siguiendo la ruta definida en el plan de cierre.
-            </p>
-        </div>
-    </div>
+    <div class="lc-page">
+        <header class="lc-page-header">
+            <div>
+                <div class="lc-kicker">Centro de control</div>
+                <h1 class="lc-title mt-2">Dashboard Operativo</h1>
+                <p class="lc-subtitle mt-3">
+                    Vista consolidada para la operacion diaria: pendientes criticos, accesos directos y actividad reciente del sistema.
+                </p>
+            </div>
+            <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Resumen</div>
+                <div class="mt-1 font-semibold">Usa este tablero para detectar cuellos de botella antes de entrar a cada modulo.</div>
+            </div>
+        </header>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
-        <article class="flex items-center gap-3 border border-slate-200 rounded-xl p-4 bg-gradient-to-br from-white to-slate-50 shadow-md hover:shadow-lg transition-shadow">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600">
-                <svg xmlns=\"http://www.w3.org/2000/svg\" class=\"w-7 h-7\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9\" /></svg>
-            </div>
-            <div>
-                <div class="text-slate-500 text-xs font-semibold uppercase">Entregas pendientes de revisión</div>
-                <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ $kpis['entregasPendientesRevision'] }}</div>
-            </div>
-        </article>
-        <article class="flex items-center gap-3 border border-slate-200 rounded-xl p-4 bg-gradient-to-br from-white to-slate-50 shadow-md hover:shadow-lg transition-shadow">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-yellow-100 text-yellow-600">
-                <svg xmlns=\"http://www.w3.org/2000/svg\" class=\"w-7 h-7\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z\" /></svg>
-            </div>
-            <div>
-                <div class="text-slate-500 text-xs font-semibold uppercase">Insumos bajo mínimo</div>
-                <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ $kpis['insumosBajoMinimo'] }}</div>
-            </div>
-        </article>
-        <article class="flex items-center gap-3 border border-slate-200 rounded-xl p-4 bg-gradient-to-br from-white to-slate-50 shadow-md hover:shadow-lg transition-shadow">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-green-100 text-green-600">
-                <svg xmlns=\"http://www.w3.org/2000/svg\" class=\"w-7 h-7\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 17v-2a4 4 0 018 0v2m-4-4a4 4 0 100-8 4 4 0 000 8zm-6 8a2 2 0 012-2h12a2 2 0 012 2v1H3v-1z\" /></svg>
-            </div>
-            <div>
-                <div class="text-slate-500 text-xs font-semibold uppercase">Órdenes en proceso</div>
-                <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ $kpis['ordenesEnProceso'] }}</div>
-            </div>
-        </article>
-    </div>
+        <section class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <article class="lc-stat-card flex items-center gap-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V4a2 2 0 1 0-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="lc-stat-label">Entregas pendientes</div>
+                    <div class="lc-stat-value mt-1">{{ $kpis['entregasPendientesRevision'] }}</div>
+                </div>
+            </article>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        <section class="border border-slate-200 rounded-[10px] p-3.5 bg-white shadow-sm">
-            <h2 class="text-base font-bold text-slate-900 mb-2.5 border-b border-slate-50 pb-2">Ruta operativa recomendada</h2>
-            <ol class="list-decimal pl-[18px] space-y-2 text-slate-700 text-sm">
-                <li><strong class="text-slate-900">Producción:</strong> crear orden, validar stock y registrar consumo de materiales.</li>
-                <li><strong class="text-slate-900">Terminados:</strong> ingresar unidades finalizadas y ajustar stock auditado.</li>
-                <li><strong class="text-slate-900">Trazabilidad:</strong> revisar historial de lotes y movimientos por etapa.</li>
-                <li><strong class="text-slate-900">Reportes:</strong> filtrar por fechas y exportar indicadores en CSV.</li>
-            </ol>
+            <article class="lc-stat-card flex items-center gap-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="lc-stat-label">Insumos bajo minimo</div>
+                    <div class="lc-stat-value mt-1">{{ $kpis['insumosBajoMinimo'] }}</div>
+                </div>
+            </article>
+
+            <article class="lc-stat-card flex items-center gap-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 0 1 8 0v2m-4-4a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-6 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1H3v-1z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="lc-stat-label">Ordenes en proceso</div>
+                    <div class="lc-stat-value mt-1">{{ $kpis['ordenesEnProceso'] }}</div>
+                </div>
+            </article>
         </section>
 
-<section class="border border-slate-200 rounded-[10px] p-3.5 bg-white shadow-sm">
-    <h2 class="text-base font-bold text-slate-900 mb-2.5 border-b border-slate-50 pb-2">Accesos directos principales</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('insumos.index') }}">
-            1. Insumos
-        </a>
-        @if (($access['produccion'] ?? false))
-            <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('produccion.bom.index') }}">
-                2. Órdenes y recetas
-            </a>
-        @endif
-            <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('ordenes-compra.index') }}">
-            3. Compras
-        </a>
-        <a class="border border-blue-100 rounded-lg p-2.5 text-blue-900 bg-blue-50 font-semibold text-sm hover:bg-blue-100 transition-colors" href="{{ route('entregas.index') }}">
-            4. Entregas
-        </a>
-    </div>
-</section>
-        @php
-            $tablas = [
-                ['titulo' => 'Últimas entregas', 'data' => $ultimasEntregas, 'tipo' => 'entregas'],
-                ['titulo' => 'Últimas órdenes de producción', 'data' => $ultimasOrdenes, 'tipo' => 'ordenes'],
-                
-            ];
-        @endphp
+        <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <article class="lc-card">
+                <div class="lc-card-header">
+                    <div>
+                        <h2 class="lc-section-title">Ruta operativa recomendada</h2>
+                        <p class="lc-section-subtitle">Secuencia sugerida para ejecutar el flujo sin perder contexto.</p>
+                    </div>
+                </div>
+                <div class="lc-card-body">
+                    <ol class="list-decimal space-y-2 pl-5 text-sm text-slate-700">
+                        <li><strong class="text-slate-900">Produccion:</strong> crear orden, validar stock y registrar consumo de materiales.</li>
+                        <li><strong class="text-slate-900">Terminados:</strong> ingresar unidades finalizadas y ajustar stock auditado.</li>
+                        <li><strong class="text-slate-900">Trazabilidad:</strong> revisar historial de lotes y movimientos por etapa.</li>
+                        <li><strong class="text-slate-900">Reportes:</strong> filtrar por fechas y exportar indicadores en CSV.</li>
+                    </ol>
+                </div>
+            </article>
 
-        @foreach($tablas as $tabla)
-        <section class="border border-slate-200 rounded-[10px] p-4 bg-white shadow-md mt-6 overflow-hidden">
-            <h2 class="text-base font-bold text-slate-900 mb-3">{{ $tabla['titulo'] }}</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse min-w-[500px]">
-                    <thead class="bg-slate-50 sticky top-0 z-10">
-                        <tr class="border-b border-slate-200">
-                            @if($tabla['tipo'] == 'entregas')
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Fecha</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Proveedor</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Material</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold text-center">Revisión</th>
-                            @elseif($tabla['tipo'] == 'ordenes')
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Orden</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Producto</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold text-center">Estado</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Avance</th>
-                            @else
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Lote</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Producto</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold text-center">Estado</th>
-                                <th class="py-2 px-2 text-slate-500 text-xs uppercase tracking-wider font-semibold">Fecha</th>
-                            @endif
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse ($tabla['data'] as $item)
-                            <tr class="text-[0.95rem] text-slate-700 hover:bg-blue-50/60 transition-colors">
-                                @if($tabla['tipo'] == 'entregas')
-                                    <td class="py-2.5 px-2">{{ optional($item->fecha_entrega)->format('Y-m-d H:i') ?? '-' }}</td>
-                                    <td class="py-2.5 px-2 font-medium text-slate-900">{{ $item->proveedor?->nombre ?? '-' }}</td>
-                                    <td class="py-2.5 px-2">{{ $item->material?->nombre ?? '-' }}</td>
-                                    <td class="py-2.5 px-2 text-center"><span class="inline-block rounded-full px-2 py-0.5 text-xs font-bold bg-slate-100 text-slate-900 border border-slate-200">{{ $item->estado_revision }}</span></td>
-                                @elseif($tabla['tipo'] == 'ordenes')
-                                    <td class="py-2.5 px-2 font-mono text-xs text-blue-600 font-bold">#{{ $item->id }}</td>
-                                    <td class="py-2.5 px-2 font-medium text-slate-900">{{ $item->producto?->nombre ?? '-' }}</td>
-                                    <td class="py-2.5 px-2 text-center"><span class="inline-block rounded-full px-2 py-0.5 text-xs font-bold bg-slate-100 text-slate-900 border border-slate-200">{{ $item->estado?->nombre ?? '-' }}</span></td>
-                                    <td class="py-2.5 px-2 font-mono text-xs italic">{{ number_format((float)$item->cantidad_completada, 2) }} / {{ number_format((float)$item->cantidad, 2) }}</td>
-                                @else
-                                    <td class="py-2.5 px-2 font-mono text-xs font-bold">{{ $item->numero_lote }}</td>
-                                    <td class="py-2.5 px-2 font-medium text-slate-900">{{ $item->producto?->nombre ?? '-' }}</td>
-                                    <td class="py-2.5 px-2 text-center"><span class="inline-block rounded-full px-2 py-0.5 text-xs font-bold bg-slate-100 text-slate-900 border border-slate-200">{{ $item->estado?->nombre ?? '-' }}</span></td>
-                                    <td class="py-2.5 px-2">{{ optional($item->fecha_produccion)->format('Y-m-d H:i') ?? '-' }}</td>
-                                @endif
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="py-6 px-2 text-center text-slate-400 italic">Sin registros recientes.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+            <article class="lc-card">
+                <div class="lc-card-header">
+                    <div>
+                        <h2 class="lc-section-title">Accesos directos principales</h2>
+                        <p class="lc-section-subtitle">Entradas rapidas para operar sin volver al menu.</p>
+                    </div>
+                </div>
+                <div class="lc-card-body">
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <a class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-3 text-sm font-semibold text-sky-900 transition hover:bg-sky-100" href="{{ route('insumos.index') }}">
+                            1. Insumos
+                        </a>
+                        @if (($access['produccion'] ?? false))
+                            <a class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-3 text-sm font-semibold text-sky-900 transition hover:bg-sky-100" href="{{ route('produccion.bom.index') }}">
+                                2. Ordenes y recetas
+                            </a>
+                        @endif
+                        <a class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-3 text-sm font-semibold text-sky-900 transition hover:bg-sky-100" href="{{ route('ordenes-compra.index') }}">
+                            3. Compras
+                        </a>
+                        <a class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-3 text-sm font-semibold text-sky-900 transition hover:bg-sky-100" href="{{ route('entregas.index') }}">
+                            4. Entregas
+                        </a>
+                    </div>
+                </div>
+            </article>
         </section>
-        @endforeach
+
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            @foreach ($tablas as $tabla)
+                <article class="lc-card overflow-hidden">
+                    <div class="lc-card-header">
+                        <div>
+                            <h2 class="lc-section-title">{{ $tabla['titulo'] }}</h2>
+                            <p class="lc-section-subtitle">Ultima actividad registrada para seguimiento rapido.</p>
+                        </div>
+                    </div>
+                    <div class="lc-table-wrap lc-scrollbar">
+                        <table class="lc-table min-w-[560px]">
+                            <thead>
+                                <tr>
+                                    @if ($tabla['tipo'] === 'entregas')
+                                        <th>Fecha</th>
+                                        <th>Proveedor</th>
+                                        <th>Material</th>
+                                        <th class="text-center">Revision</th>
+                                    @else
+                                        <th>Orden</th>
+                                        <th>Producto</th>
+                                        <th class="text-center">Estado</th>
+                                        <th>Avance</th>
+                                    @endif
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($tabla['data'] as $item)
+                                    <tr>
+                                        @if ($tabla['tipo'] === 'entregas')
+                                            <td>{{ optional($item->fecha_entrega)->format('Y-m-d H:i') ?? '-' }}</td>
+                                            <td class="font-medium text-slate-900">{{ $item->proveedor?->nombre ?? '-' }}</td>
+                                            <td>{{ $item->material?->nombre ?? '-' }}</td>
+                                            <td class="text-center"><span class="lc-badge lc-badge-neutral">{{ $item->estado_revision }}</span></td>
+                                        @else
+                                            <td class="font-mono text-xs font-bold text-sky-700">#{{ $item->id }}</td>
+                                            <td class="font-medium text-slate-900">{{ $item->producto?->nombre ?? '-' }}</td>
+                                            <td class="text-center"><span class="lc-badge lc-badge-neutral">{{ $item->estado?->nombre ?? '-' }}</span></td>
+                                            <td class="font-mono text-xs italic">{{ number_format((float) $item->cantidad_completada, 2) }} / {{ number_format((float) $item->cantidad, 2) }}</td>
+                                        @endif
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="4" class="px-4 py-10 text-center text-sm italic text-slate-400">Sin registros recientes.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            @endforeach
+        </section>
     </div>
 @endsection

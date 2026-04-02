@@ -22,9 +22,15 @@ class OrdenCompraController extends Controller
 	public function index(Request $request): View
 	{
 		$this->authorize('viewAny', OrdenCompra::class);
+		$user = Auth::user();
+		$isProveedor = $this->isProveedorRole($user);
+		$proveedorIds = $isProveedor && $user ? $this->resolveProveedorIdsForUser($user) : [];
 
 		$query = OrdenCompra::query()
 			->with(['proveedor', 'user', 'detalles.insumo', 'detalles.unidadMedida'])
+			->when($isProveedor, function ($builder) use ($proveedorIds): void {
+				$builder->whereIn('proveedor_id', $proveedorIds ?: [0]);
+			})
 			->orderByDesc('fecha_orden');
 
 		if ($request->filled('estado')) {
@@ -41,12 +47,54 @@ class OrdenCompraController extends Controller
 		}
 
 		$ordenesCompra = $query->paginate(15)->withQueryString();
-		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
+		$proveedores = Proveedor::query()
+			->when($isProveedor, function ($builder) use ($proveedorIds): void {
+				$builder->whereIn('id', $proveedorIds ?: [0]);
+			})
+			->orderBy('razon_social')
+			->get();
 
 		return view('compras.index', compact('ordenesCompra', 'proveedores'));
 	}
 
-	public function create(): View
+	private function isProveedorRole($user): bool
+	{
+		$roleName = mb_strtoupper((string) ($user?->role?->slug ?: $user?->role?->nombre ?: ''));
+
+		return $roleName === 'PROVEEDOR';
+	}
+
+	/**
+	 * @return array<int>
+	 */
+	private function resolveProveedorIdsForUser($user): array
+	{
+		$proveedorId = (int) ($user?->proveedor_id ?? 0);
+
+		if ($proveedorId > 0) {
+			return [$proveedorId];
+		}
+
+		$email = $user?->email;
+
+		if (! $email) {
+			return [];
+		}
+
+		return DB::table('proveedores')
+			->select('proveedores.id')
+			->leftJoin('contactos_proveedores', 'contactos_proveedores.proveedor_id', '=', 'proveedores.id')
+			->where(function ($query) use ($email): void {
+				$query->where('proveedores.email_general', $email)
+					->orWhere('contactos_proveedores.email', $email);
+			})
+			->distinct()
+			->pluck('proveedores.id')
+			->map(fn ($id): int => (int) $id)
+			->all();
+	}
+
+	public function create(Request $request): View
 	{
 		$this->authorize('create', OrdenCompra::class);
 
@@ -54,7 +102,37 @@ class OrdenCompraController extends Controller
 		$insumos = Insumo::query()->with('unidadMedida')->orderBy('nombre')->get();
 		$unidades = UnidadMedida::query()->where('activo', true)->orderBy('nombre')->get();
 
-		return view('compras.create', compact('proveedores', 'insumos', 'unidades'));
+		$prefillDetalle = null;
+		$prefillProveedorId = old('proveedor_id');
+
+		$reabastecerInsumoId = $request->integer('reabastecer_insumo_id');
+		if ($reabastecerInsumoId > 0) {
+			$insumoPrefill = $insumos->firstWhere('id', $reabastecerInsumoId);
+
+			if ($insumoPrefill) {
+				$cantidadSugeridaRequest = $request->query('cantidad_sugerida');
+				$cantidadSugerida = is_numeric($cantidadSugeridaRequest)
+					? (float) $cantidadSugeridaRequest
+					: max(
+						(float) ($insumoPrefill->cantidad_minima_orden ?? 0),
+						max(0, (float) $insumoPrefill->stock_minimo - (float) $insumoPrefill->stock_actual)
+					);
+
+				$prefillDetalle = [
+					'insumo_id' => (int) $insumoPrefill->id,
+					'unidad_medida_id' => (int) ($insumoPrefill->unidad_medida_id ?? 0),
+					'cantidad_solicitada' => max(1, $cantidadSugerida),
+					'precio_unitario' => (float) ($insumoPrefill->precio_costo ?? 0),
+					'descuento_porcentaje' => 0,
+					'fecha_entrega_esperada_linea' => now()->addDays(3)->toDateString(),
+					'notas' => 'Reabastecimiento por stock bajo desde módulo de Insumos.',
+				];
+
+				$prefillProveedorId = old('proveedor_id', $insumoPrefill->proveedor_id);
+			}
+		}
+
+		return view('compras.create', compact('proveedores', 'insumos', 'unidades', 'prefillDetalle', 'prefillProveedorId'));
 	}
 
 	public function store(StoreOrdenCompraRequest $request): RedirectResponse
@@ -147,6 +225,7 @@ class OrdenCompraController extends Controller
 		DB::beginTransaction();
 
 		try {
+			$estadoAnterior = (string) $ordenCompra->estado;
 			$data = $request->validated();
 			$detalles = $data['detalles'] ?? null;
 			unset($data['detalles']);
@@ -195,6 +274,18 @@ class OrdenCompraController extends Controller
 					'subtotal' => $subtotal,
 					'monto_total' => $subtotal + $impuestos - $descuentos + $flete,
 				]);
+			}
+
+			$estadoNuevo = (string) ($data['estado'] ?? $ordenCompra->estado);
+			$cambioARecibida = strcasecmp(trim($estadoAnterior), 'Recibida') !== 0
+				&& strcasecmp(trim($estadoNuevo), 'Recibida') === 0;
+
+			if ($cambioARecibida) {
+				$fechaRecepcion = isset($data['fecha_entrega_real']) && is_string($data['fecha_entrega_real'])
+					? $data['fecha_entrega_real']
+					: null;
+
+				$this->procesarRecepcionOrden($ordenCompra, null, [], $fechaRecepcion);
 			}
 
 			DB::commit();
@@ -265,88 +356,12 @@ class OrdenCompraController extends Controller
 		DB::beginTransaction();
 
 		try {
-			if (! $ordenCompra->puedeRecibirse()) {
-				return back()->with('error', 'La orden no puede recibirse en su estado actual.');
-			}
-
-			$ubicacionId = $request->integer('ubicacion_almacen_id')
-				?: UbicacionAlmacen::query()->where('activo', true)->value('id');
-
-			if (! $ubicacionId) {
-				return back()->with('error', 'No existe una ubicacion activa para recepcion.');
-			}
-
-			$payloadDetalles = $request->input('detalles', []);
-
-			if (count($payloadDetalles) === 0) {
-				$payloadDetalles = $ordenCompra->detalles()->get()->map(function ($detalle) {
-					return [
-						'detalle_id' => $detalle->id,
-						'cantidad_recibida' => $detalle->cantidad_solicitada,
-						'cantidad_aceptada' => $detalle->cantidad_solicitada,
-						'estado_linea' => 'Recibida',
-					];
-				})->all();
-			}
-
-			foreach ($payloadDetalles as $item) {
-				$detalle = $ordenCompra->detalles()->where('id', $item['detalle_id'])->firstOrFail();
-
-				$cantidadRecibida = (float) $item['cantidad_recibida'];
-				$cantidadAceptada = (float) ($item['cantidad_aceptada'] ?? $cantidadRecibida);
-
-				$detalle->update([
-					'cantidad_recibida' => $cantidadRecibida,
-					'cantidad_aceptada' => $cantidadAceptada,
-					'estado_linea' => $item['estado_linea'] ?? 'Recibida',
-				]);
-
-				$insumo = $detalle->insumo;
-				$saldoAnterior = (float) $insumo->stock_actual;
-				$saldoPosterior = $saldoAnterior + $cantidadAceptada;
-
-				$insumo->update([
-					'stock_actual' => $saldoPosterior,
-				]);
-
-				$lote = LoteInsumo::create([
-					'numero_lote' => 'LOT-' . $ordenCompra->id . '-' . $detalle->id . '-' . now()->format('YmdHis'),
-					'lote_proveedor' => $ordenCompra->numero_folio_proveedor,
-					'insumo_id' => $detalle->insumo_id,
-					'orden_compra_id' => $ordenCompra->id,
-					'proveedor_id' => $ordenCompra->proveedor_id,
-					'fecha_lote' => now()->toDateString(),
-					'fecha_recepcion' => now(),
-					'cantidad_recibida' => $cantidadRecibida,
-					'cantidad_en_stock' => $cantidadAceptada,
-					'cantidad_rechazada' => max(0, $cantidadRecibida - $cantidadAceptada),
-					'ubicacion_almacen_id' => $ubicacionId,
-					'estado_calidad' => 'Aceptado',
-					'user_recepcion_id' => Auth::id(),
-					'activo' => true,
-				]);
-
-				MovimientoInventario::create([
-					'tipo_movimiento' => MovimientoInventario::TIPO_ENTRADA,
-					'insumo_id' => $detalle->insumo_id,
-					'lote_insumo_id' => $lote->id,
-					'orden_compra_id' => $ordenCompra->id,
-					'cantidad' => $cantidadAceptada,
-					'unidad_medida_id' => $detalle->unidad_medida_id,
-					'ubicacion_destino_id' => $ubicacionId,
-					'referencia_documento' => $ordenCompra->numero_orden,
-					'motivo' => 'Recepcion de orden de compra',
-					'user_id' => Auth::id(),
-					'fecha_movimiento' => now(),
-					'saldo_anterior' => $saldoAnterior,
-					'saldo_posterior' => $saldoPosterior,
-				]);
-			}
-
-			$ordenCompra->update([
-				'estado' => 'Recibida',
-				'fecha_entrega_real' => now()->toDateString(),
-			]);
+			$this->procesarRecepcionOrden(
+				$ordenCompra,
+				$request->integer('ubicacion_almacen_id'),
+				$request->input('detalles', []),
+				now()->toDateString()
+			);
 
 			DB::commit();
 
@@ -356,5 +371,98 @@ class OrdenCompraController extends Controller
 
 			return back()->withInput()->with('error', 'Error al procesar: ' . $e->getMessage());
 		}
+	}
+
+	/**
+	 * @param  array<int, array<string, mixed>>  $payloadDetalles
+	 */
+	private function procesarRecepcionOrden(OrdenCompra $ordenCompra, ?int $ubicacionId = null, array $payloadDetalles = [], ?string $fechaEntrega = null): void
+	{
+		if (! $ordenCompra->puedeRecibirse() && strcasecmp(trim((string) $ordenCompra->estado), 'Recibida') !== 0) {
+			throw new \RuntimeException('La orden no puede recibirse en su estado actual.');
+		}
+
+		$ubicacionFinal = $ubicacionId ?: UbicacionAlmacen::query()->where('activo', true)->value('id');
+
+		if (! $ubicacionFinal) {
+			throw new \RuntimeException('No existe una ubicacion activa para recepcion.');
+		}
+
+		if (count($payloadDetalles) === 0) {
+			$payloadDetalles = $ordenCompra->detalles()->get()->map(function ($detalle): array {
+				return [
+					'detalle_id' => $detalle->id,
+					'cantidad_recibida' => $detalle->cantidad_solicitada,
+					'cantidad_aceptada' => $detalle->cantidad_solicitada,
+					'estado_linea' => 'Recibida',
+				];
+			})->all();
+		}
+
+		$fechaMovimiento = $fechaEntrega ?: now()->toDateString();
+
+		foreach ($payloadDetalles as $item) {
+			$detalleId = isset($item['detalle_id']) ? (int) $item['detalle_id'] : 0;
+			$detalle = $ordenCompra->detalles()->where('id', $detalleId)->firstOrFail();
+
+			$cantidadRecibida = (float) ($item['cantidad_recibida'] ?? 0);
+			$cantidadAceptada = (float) ($item['cantidad_aceptada'] ?? $cantidadRecibida);
+
+			if ($cantidadRecibida <= 0) {
+				continue;
+			}
+
+			$detalle->update([
+				'cantidad_recibida' => $cantidadRecibida,
+				'cantidad_aceptada' => $cantidadAceptada,
+				'estado_linea' => (string) ($item['estado_linea'] ?? 'Recibida'),
+			]);
+
+			$insumo = $detalle->insumo;
+			$saldoAnterior = (float) $insumo->stock_actual;
+			$saldoPosterior = $saldoAnterior + $cantidadAceptada;
+
+			$insumo->update([
+				'stock_actual' => $saldoPosterior,
+			]);
+
+			$lote = LoteInsumo::create([
+				'numero_lote' => 'LOT-' . $ordenCompra->id . '-' . $detalle->id . '-' . now()->format('YmdHis'),
+				'lote_proveedor' => $ordenCompra->numero_folio_proveedor,
+				'insumo_id' => $detalle->insumo_id,
+				'orden_compra_id' => $ordenCompra->id,
+				'proveedor_id' => $ordenCompra->proveedor_id,
+				'fecha_lote' => $fechaMovimiento,
+				'fecha_recepcion' => now(),
+				'cantidad_recibida' => $cantidadRecibida,
+				'cantidad_en_stock' => $cantidadAceptada,
+				'cantidad_rechazada' => max(0, $cantidadRecibida - $cantidadAceptada),
+				'ubicacion_almacen_id' => $ubicacionFinal,
+				'estado_calidad' => 'Aceptado',
+				'user_recepcion_id' => Auth::id(),
+				'activo' => true,
+			]);
+
+			MovimientoInventario::create([
+				'tipo_movimiento' => MovimientoInventario::TIPO_ENTRADA,
+				'insumo_id' => $detalle->insumo_id,
+				'lote_insumo_id' => $lote->id,
+				'orden_compra_id' => $ordenCompra->id,
+				'cantidad' => $cantidadAceptada,
+				'unidad_medida_id' => $detalle->unidad_medida_id,
+				'ubicacion_destino_id' => $ubicacionFinal,
+				'referencia_documento' => $ordenCompra->numero_orden,
+				'motivo' => 'Recepcion de orden de compra',
+				'user_id' => Auth::id(),
+				'fecha_movimiento' => $fechaMovimiento,
+				'saldo_anterior' => $saldoAnterior,
+				'saldo_posterior' => $saldoPosterior,
+			]);
+		}
+
+		$ordenCompra->update([
+			'estado' => 'Recibida',
+			'fecha_entrega_real' => $fechaMovimiento,
+		]);
 	}
 }

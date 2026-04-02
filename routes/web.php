@@ -12,7 +12,6 @@ use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\TerminadoController;
 use App\Http\Controllers\TrazabilidadController;
-use App\Http\Controllers\UsuarioController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -76,15 +75,11 @@ Route::middleware(['auth'])->group(function () {
     // Exportación de reportes
     Route::get('reportes/export/csv', [ReporteController::class, 'exportCsv'])->name('reportes.export.csv');
 
-    // Gestión de usuarios (sin show)
-    Route::resource('usuarios', UsuarioController::class)->except(['show']);
-    Route::patch('usuarios/{usuario}/toggle-activo', [UsuarioController::class, 'toggleActivo'])
-        ->name('usuarios.toggle-activo');
-
     // Permisos
     Route::get('permisos', [PermisoController::class, 'index'])->name('permisos.index');
     Route::post('permisos', [PermisoController::class, 'store'])->name('permisos.store');
     Route::patch('permisos/{id}/toggle-estado', [PermisoController::class, 'toggleEstado'])->name('permisos.toggleEstado');
+    Route::get('permisos/usuarios/{id}/edit', [PermisoController::class, 'edit'])->name('permisos.usuarios.edit');
     Route::put('permisos/usuarios/{id}', [PermisoController::class, 'update'])->name('permisos.usuarios.update');
     Route::delete('permisos/usuarios/{id}', [PermisoController::class, 'destroy'])->name('permisos.usuarios.destroy');
 
@@ -99,9 +94,9 @@ Route::middleware(['auth'])->group(function () {
     // Producción (módulo operativo)
     Route::get('produccion', [ProduccionController::class, 'index'])->name('produccion.index');
     Route::post('produccion', [ProduccionController::class, 'store'])->name('produccion.store');
+    Route::get('produccion/{id}/seguimiento', [ProduccionController::class, 'seguimiento'])->name('produccion.seguimiento');
     Route::post('produccion/registrar-consumo', [ProduccionController::class, 'registrarConsumo'])->name('produccion.registrar-consumo');
-    Route::patch('produccion/{id}/update-estado', [ProduccionController::class, 'updateEstado'])->name('produccion.update-estado');
-    Route::patch('produccion/{id}/asignacion', [ProduccionController::class, 'updateAsignacion'])->name('produccion.update-asignacion');
+    Route::patch('produccion/{id}/seguimiento', [ProduccionController::class, 'updateSeguimiento'])->name('produccion.update-seguimiento');
     Route::patch('produccion/{id}/cancelar', [ProduccionController::class, 'cancelar'])->name('produccion.cancelar');
     Route::get('produccion/ordenes-filtradas', [ProduccionController::class, 'ordenesFiltradas'])->name('produccion.ordenes-filtradas');
 
@@ -118,4 +113,5 @@ Route::middleware(['auth'])->group(function () {
     Route::get('terminados', [TerminadoController::class, 'index'])->name('terminados.index');
     Route::post('terminados/ingresos', [TerminadoController::class, 'storeIngreso'])->name('terminados.ingresos.store');
     Route::post('terminados/ajustes', [TerminadoController::class, 'storeAjuste'])->name('terminados.ajustes.store');
+    Route::patch('terminados/{productoTerminado}/revision', [TerminadoController::class, 'revisionCalidad'])->name('terminados.revision');
 });

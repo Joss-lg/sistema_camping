@@ -10,6 +10,13 @@ class InventarioProductoTerminado extends Model
 {
     use SoftDeletes;
 
+    public const ESTADO_PENDIENTE_INSPECCION = 'Pendiente Inspección';
+    public const ESTADO_EN_ALMACEN = 'En Almacén';
+    public const ESTADO_RESERVADO = 'Reservado';
+    public const ESTADO_ENVIADO = 'Enviado';
+    public const ESTADO_VENDIDO = 'Vendido';
+    public const ESTADO_DESCARTADO = 'Descartado';
+
     protected $table = 'inventario_productos_terminados';
 
     protected $fillable = [
@@ -67,22 +74,22 @@ class InventarioProductoTerminado extends Model
 
     public function scopeEnAlmacen($query)
     {
-        return $query->where('estado', 'En Almacén');
+        return $query->where('estado', self::ESTADO_EN_ALMACEN);
     }
 
     public function scopeReservados($query)
     {
-        return $query->where('estado', 'Reservado');
+        return $query->where('estado', self::ESTADO_RESERVADO);
     }
 
     public function scopeEnviados($query)
     {
-        return $query->where('estado', 'Enviado');
+        return $query->where('estado', self::ESTADO_ENVIADO);
     }
 
     public function scopeVendidos($query)
     {
-        return $query->where('estado', 'Vendido');
+        return $query->where('estado', self::ESTADO_VENDIDO);
     }
 
     public function scopeTipoProducto($query, $tipoProductoId)
@@ -131,7 +138,7 @@ class InventarioProductoTerminado extends Model
 
     public function reservar($cantidad): bool
     {
-        if ($this->cantidadDisponible() >= $cantidad) {
+        if ($this->estado === self::ESTADO_EN_ALMACEN && $this->cantidadDisponible() >= $cantidad) {
             $this->cantidad_reservada += $cantidad;
             $this->save();
             return true;
@@ -147,11 +154,11 @@ class InventarioProductoTerminado extends Model
 
     public function confirmarVenta($cantidad): bool
     {
-        if ($this->cantidad_reservada >= $cantidad) {
+        if ($this->estado === self::ESTADO_EN_ALMACEN && $this->cantidad_reservada >= $cantidad) {
             $this->cantidad_en_almacen -= $cantidad;
             $this->cantidad_reservada -= $cantidad;
             if ($this->cantidad_en_almacen === 0) {
-                $this->estado = 'Vendido';
+                $this->estado = self::ESTADO_VENDIDO;
             }
             $this->save();
             return true;

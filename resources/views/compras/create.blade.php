@@ -1,126 +1,281 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto px-4 py-6 space-y-6">
-    <div class="flex items-center justify-between">
+<div class="lc-page max-w-6xl">
+    <section class="lc-page-header">
         <div>
-            <h1 class="text-3xl font-extrabold text-slate-800">Crear orden de compra</h1>
-            <p class="text-slate-500 text-sm mt-1">Registra una nueva orden seleccionando el proveedor.</p>
+            <div class="lc-kicker">Abastecimiento</div>
+            <h1 class="lc-title">Crear orden de compra</h1>
+            <p class="lc-subtitle">Registra la orden, condiciones comerciales y detalles de insumo desde una sola pantalla de captura.</p>
         </div>
-        <a href="{{ route('ordenes-compra.index') }}" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold">Volver</a>
-    </div>
+        <a href="{{ route('ordenes-compra.index') }}" class="lc-btn-secondary">Volver</a>
+    </section>
 
-    @if ($errors->any())
-        <div class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-sm">
-            {{ $errors->first() }}
+    @include('partials.flash-messages')
+
+    <section class="lc-card overflow-hidden">
+        <div class="lc-card-header">
+            <div>
+                <h2 class="lc-section-title">Encabezado de orden</h2>
+                <p class="lc-section-subtitle">Define proveedor, entrega esperada y condiciones antes de agregar las líneas de compra.</p>
+            </div>
         </div>
-    @endif
-
-    <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-        <form method="POST" action="{{ route('ordenes-compra.store') }}" class="space-y-5">
+        <form method="POST" action="{{ route('ordenes-compra.store') }}" class="lc-card-body space-y-6" x-data="{ submitting: false }" x-on:submit="submitting = true">
             @csrf
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Proveedor</label>
-                <select name="proveedor_id" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                    <option value="">Seleccione proveedor</option>
-                    @foreach($proveedores as $proveedor)
-                        <option value="{{ $proveedor->id }}" @selected((string) old('proveedor_id') === (string) $proveedor->id)>{{ $proveedor->razon_social }}</option>
-                    @endforeach
-                </select>
-                @error('proveedor_id')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
+            <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                <div class="lc-field">
+                    <label class="lc-label">Proveedor</label>
+                    <select name="proveedor_id" class="lc-select">
+                        <option value="">Seleccione proveedor</option>
+                        @foreach($proveedores as $proveedor)
+                            <option value="{{ $proveedor->id }}" @selected((string) old('proveedor_id', $prefillProveedorId ?? '') === (string) $proveedor->id)>{{ $proveedor->razon_social }}</option>
+                        @endforeach
+                    </select>
+                    @error('proveedor_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Fecha de entrega prevista</label>
+                    <input type="date" name="fecha_entrega_prevista" value="{{ old('fecha_entrega_prevista') }}" class="lc-input">
+                    @error('fecha_entrega_prevista')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field xl:col-span-2">
+                    <label class="lc-label">Notas</label>
+                    <textarea name="notas" rows="3" class="lc-textarea">{{ old('notas') }}</textarea>
+                    @error('notas')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Impuestos (monto fijo)</label>
+                    <input type="number" step="0.01" min="0" name="impuestos" value="{{ old('impuestos') }}" class="lc-input" data-fin="impuestos">
+                    <p class="lc-help">Se suma al subtotal final de la orden.</p>
+                    @error('impuestos')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Descuentos (monto fijo)</label>
+                    <input type="number" step="0.01" min="0" name="descuentos" value="{{ old('descuentos') }}" class="lc-input" data-fin="descuentos">
+                    <p class="lc-help">Se resta al subtotal final de la orden.</p>
+                    @error('descuentos')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Costo de flete</label>
+                    <input type="number" step="0.01" min="0" name="costo_flete" value="{{ old('costo_flete') }}" class="lc-input" data-fin="flete">
+                    @error('costo_flete')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Condiciones de pago</label>
+                    <input type="text" name="condiciones_pago" value="{{ old('condiciones_pago') }}" class="lc-input">
+                    @error('condiciones_pago')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Incoterm</label>
+                    <input type="text" name="incoterm" value="{{ old('incoterm') }}" maxlength="20" class="lc-input" placeholder="Ej: EXW, FOB, CIF">
+                    @error('incoterm')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Folio proveedor</label>
+                    <input type="text" name="numero_folio_proveedor" value="{{ old('numero_folio_proveedor') }}" maxlength="100" class="lc-input">
+                    @error('numero_folio_proveedor')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Numero de contenedor</label>
+                    <input type="text" name="numero_contenedor" value="{{ old('numero_contenedor') }}" maxlength="100" class="lc-input">
+                    @error('numero_contenedor')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label class="lc-label">Numero AWB</label>
+                    <input type="text" name="numero_awb" value="{{ old('numero_awb') }}" maxlength="100" class="lc-input">
+                    @error('numero_awb')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
             </div>
 
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Fecha de entrega prevista <span class="text-red-600">*</span></label>
-                <input type="date" name="fecha_entrega_prevista" value="{{ old('fecha_entrega_prevista') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                @error('fecha_entrega_prevista')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Notas</label>
-                <textarea name="notas" rows="2" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">{{ old('notas') }}</textarea>
-                @error('notas')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Impuestos</label>
-                <input type="number" step="0.01" name="impuestos" value="{{ old('impuestos') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                @error('impuestos')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Descuentos</label>
-                <input type="number" step="0.01" name="descuentos" value="{{ old('descuentos') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                @error('descuentos')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Costo de flete</label>
-                <input type="number" step="0.01" name="costo_flete" value="{{ old('costo_flete') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                @error('costo_flete')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
-            </div>
-
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Condiciones de pago</label>
-                <input type="text" name="condiciones_pago" value="{{ old('condiciones_pago') }}" class="border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                @error('condiciones_pago')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
-            </div>
-
-
-            <div class="flex flex-col gap-1.5 max-w-xl">
-                <label class="text-sm font-semibold text-slate-600">Detalles de insumos <span class="text-red-600">*</span></label>
-                <table class="w-full text-sm border border-slate-300 rounded-lg mb-2">
-                    <thead class="bg-slate-100">
-                        <tr>
-                            <th>Insumo</th>
-                            <th>Unidad</th>
-                            <th>Cantidad</th>
-                            <th>Precio unitario</th>
-                            <th>Descuento %</th>
-                            <th>Fecha entrega línea</th>
-                            <th>Notas</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="detalles-body">
-                        <!-- Filas dinámicas JS -->
-                    </tbody>
-                </table>
-                <button type="button" onclick="agregarDetalle()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1 rounded-lg">Agregar insumo</button>
-                @error('detalles')<p class="text-red-600 text-xs">{{ $message }}</p>@enderror
+            <div class="lc-card-muted p-4">
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="lc-section-title">Detalles de insumos</h3>
+                        <p class="lc-section-subtitle">Agrega una o varias líneas de compra sin salir del formulario.</p>
+                    </div>
+                    <button type="button" onclick="agregarDetalle()" class="lc-btn-secondary">Agregar insumo</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="lc-table min-w-[980px]">
+                        <thead>
+                            <tr>
+                                <th>Insumo</th>
+                                <th>Unidad</th>
+                                <th>Cantidad</th>
+                                <th>Precio unitario</th>
+                                <th>Descuento %</th>
+                                <th>Fecha entrega</th>
+                                <th>Notas</th>
+                                <th class="text-right">Quitar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detalles-body"></tbody>
+                    </table>
+                </div>
+                <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <div class="lc-card-muted p-3">
+                        <div class="text-xs text-slate-500">Subtotal líneas</div>
+                        <div id="resumen-subtotal" class="text-lg font-semibold text-slate-900">$0.00</div>
+                    </div>
+                    <div class="lc-card-muted p-3">
+                        <div class="text-xs text-slate-500">Impuestos</div>
+                        <div id="resumen-impuestos" class="text-lg font-semibold text-slate-900">$0.00</div>
+                    </div>
+                    <div class="lc-card-muted p-3">
+                        <div class="text-xs text-slate-500">Descuentos y flete</div>
+                        <div id="resumen-ajustes" class="text-lg font-semibold text-slate-900">-$0.00 / +$0.00</div>
+                    </div>
+                    <div class="lc-card-muted p-3 border border-sky-200 bg-sky-50/60">
+                        <div class="text-xs text-slate-500">Total estimado</div>
+                        <div id="resumen-total" class="text-xl font-bold text-sky-800">$0.00</div>
+                    </div>
+                </div>
+                <p class="lc-help mt-3">Formula: subtotal lineas + impuestos - descuentos + flete. El descuento por linea (%) se aplica antes del subtotal general.</p>
+                @error('detalles')<p class="lc-help mt-3 text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <script>
                 let insumos = @json($insumos);
                 let unidades = @json($unidades);
-                function agregarDetalle() {
+                let prefillDetalle = @json($prefillDetalle ?? null);
+                let detalleIndex = 0;
+
+                function renumerarFilasDetalles() {
+                    const rows = Array.from(document.querySelectorAll('#detalles-body tr'));
+                    rows.forEach((row, rowIndex) => {
+                        row.querySelectorAll('select, input').forEach((field) => {
+                            const baseName = field.dataset.baseName;
+                            if (baseName) {
+                                field.name = `detalles[${rowIndex}][${baseName}]`;
+                            }
+                        });
+                    });
+
+                    detalleIndex = rows.length;
+                }
+
+                function agregarDetalle(defaults = null) {
                     const tbody = document.getElementById('detalles-body');
                     const row = document.createElement('tr');
+                    const rowIndex = detalleIndex;
+                    const initial = defaults || {};
+
+                    const renderOptions = (options, selectedValue) => {
+                        const selectedNormalized = selectedValue === undefined || selectedValue === null || selectedValue === ''
+                            ? ''
+                            : String(selectedValue);
+
+                        return options.map((item) => {
+                            const itemValue = String(item.id);
+                            const selected = itemValue === selectedNormalized ? 'selected' : '';
+                            const label = item.nombre ?? item.razon_social ?? `#${itemValue}`;
+                            return `<option value="${itemValue}" ${selected}>${label}</option>`;
+                        }).join('');
+                    };
+
                     row.innerHTML = `
                         <td>
-                            <select name="detalles[][insumo_id]" class="border border-slate-300 rounded-lg p-1">
-                                ${insumos.map(i => `<option value="${i.id}">${i.nombre}</option>`).join('')}
+                            <select name="detalles[${rowIndex}][insumo_id]" data-base-name="insumo_id" class="lc-select min-w-[180px] py-2" required>
+                                <option value="">Seleccione</option>
+                                ${renderOptions(insumos, initial.insumo_id)}
                             </select>
                         </td>
                         <td>
-                            <select name="detalles[][unidad_medida_id]" class="border border-slate-300 rounded-lg p-1">
-                                ${unidades.map(u => `<option value="${u.id}">${u.nombre}</option>`).join('')}
+                            <select name="detalles[${rowIndex}][unidad_medida_id]" data-base-name="unidad_medida_id" class="lc-select min-w-[140px] py-2" required>
+                                <option value="">Seleccione</option>
+                                ${renderOptions(unidades, initial.unidad_medida_id)}
                             </select>
                         </td>
-                        <td><input type="number" step="0.01" name="detalles[][cantidad_solicitada]" class="border border-slate-300 rounded-lg p-1" required></td>
-                        <td><input type="number" step="0.01" name="detalles[][precio_unitario]" class="border border-slate-300 rounded-lg p-1" required></td>
-                        <td><input type="number" step="0.01" name="detalles[][descuento_porcentaje]" class="border border-slate-300 rounded-lg p-1"></td>
-                        <td><input type="date" name="detalles[][fecha_entrega_esperada_linea]" class="border border-slate-300 rounded-lg p-1"></td>
-                        <td><input type="text" name="detalles[][notas]" class="border border-slate-300 rounded-lg p-1"></td>
-                        <td><button type="button" onclick="this.closest('tr').remove()" class="text-red-600 font-bold">X</button></td>
+                        <td>
+                            <input type="number" step="0.01" name="detalles[${rowIndex}][cantidad_solicitada]" data-base-name="cantidad_solicitada" class="lc-input py-2 min-w-[120px]" value="${initial.cantidad_solicitada ?? ''}" required>
+                        </td>
+                        <td>
+                            <input type="number" step="0.01" name="detalles[${rowIndex}][precio_unitario]" data-base-name="precio_unitario" class="lc-input py-2 min-w-[120px]" value="${initial.precio_unitario ?? ''}" required>
+                        </td>
+                        <td>
+                            <input type="number" step="0.01" name="detalles[${rowIndex}][descuento_porcentaje]" data-base-name="descuento_porcentaje" class="lc-input py-2 min-w-[120px]" value="${initial.descuento_porcentaje ?? ''}">
+                        </td>
+                        <td>
+                            <input type="date" name="detalles[${rowIndex}][fecha_entrega_esperada_linea]" data-base-name="fecha_entrega_esperada_linea" class="lc-input py-2 min-w-[150px]" value="${initial.fecha_entrega_esperada_linea ?? ''}">
+                        </td>
+                        <td>
+                            <input type="text" name="detalles[${rowIndex}][notas]" data-base-name="notas" class="lc-input py-2 min-w-[180px]" value="${initial.notas ?? ''}">
+                        </td>
+                        <td class="text-right align-middle">
+                            <button type="button" onclick="this.closest('tr').remove(); renumerarFilasDetalles();" class="lc-icon-btn lc-icon-btn-danger" aria-label="Quitar detalle">X</button>
+                        </td>
                     `;
                     tbody.appendChild(row);
+                    detalleIndex++;
+                    calcularResumenOrden();
                 }
+
+                function valorNumero(value) {
+                    const n = parseFloat(value);
+                    return Number.isFinite(n) ? n : 0;
+                }
+
+                function formatoMoneda(valor) {
+                    return `$${valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                }
+
+                function calcularResumenOrden() {
+                    let subtotal = 0;
+
+                    document.querySelectorAll('#detalles-body tr').forEach((row) => {
+                        const cantidad = valorNumero(row.querySelector('[data-base-name="cantidad_solicitada"]')?.value);
+                        const precio = valorNumero(row.querySelector('[data-base-name="precio_unitario"]')?.value);
+                        const descuentoPct = Math.max(0, Math.min(100, valorNumero(row.querySelector('[data-base-name="descuento_porcentaje"]')?.value)));
+
+                        const base = cantidad * precio;
+                        const subtotalLinea = base - (base * (descuentoPct / 100));
+                        subtotal += subtotalLinea;
+                    });
+
+                    const impuestos = valorNumero(document.querySelector('[data-fin="impuestos"]')?.value);
+                    const descuentos = valorNumero(document.querySelector('[data-fin="descuentos"]')?.value);
+                    const flete = valorNumero(document.querySelector('[data-fin="flete"]')?.value);
+                    const total = subtotal + impuestos - descuentos + flete;
+
+                    document.getElementById('resumen-subtotal').textContent = formatoMoneda(subtotal);
+                    document.getElementById('resumen-impuestos').textContent = formatoMoneda(impuestos);
+                    document.getElementById('resumen-ajustes').textContent = `-${formatoMoneda(descuentos)} / +${formatoMoneda(flete)}`;
+                    document.getElementById('resumen-total').textContent = formatoMoneda(Math.max(0, total));
+                }
+
+                window.addEventListener('DOMContentLoaded', () => {
+                    if (document.getElementById('detalles-body').children.length === 0) {
+                        agregarDetalle(prefillDetalle);
+                    }
+
+                    document.addEventListener('input', (event) => {
+                        if (event.target.closest('#detalles-body') || event.target.matches('[data-fin]')) {
+                            calcularResumenOrden();
+                        }
+                    });
+
+                    calcularResumenOrden();
+                });
             </script>
 
-            <div class="pt-2 flex justify-end gap-3">
-                <a href="{{ route('ordenes-compra.index') }}" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-2 rounded-lg">Cancelar</a>
-                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2 rounded-lg">Guardar</button>
+            <div class="flex justify-end gap-3 pt-2">
+                <a href="{{ route('ordenes-compra.index') }}" class="lc-btn-secondary">Cancelar</a>
+                <button type="submit" class="lc-btn-primary min-w-[170px]" x-bind:disabled="submitting" x-bind:aria-busy="submitting.toString()">
+                    <svg x-cloak x-show="submitting" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="mr-2 h-4 w-4 animate-spin" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4.75 12a7.25 7.25 0 0 1 14.5 0" />
+                    </svg>
+                    <span x-text="submitting ? 'Guardando...' : 'Guardar orden'"></span>
+                </button>
             </div>
         </form>
     </section>

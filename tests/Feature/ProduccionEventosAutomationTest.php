@@ -123,7 +123,7 @@ class ProduccionEventosAutomationTest extends TestCase
 
         $this->assertNotNull($inventario);
         $this->assertEquals(12.0, (float) $inventario->cantidad_en_almacen);
-        $this->assertEquals('En Almacén', $inventario->estado);
+        $this->assertEquals(InventarioProductoTerminado::ESTADO_PENDIENTE_INSPECCION, $inventario->estado);
 
         // Idempotencia: completar una orden ya completada no debe duplicar registros.
         $orden->marcarCompletada();

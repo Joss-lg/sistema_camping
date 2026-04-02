@@ -95,6 +95,19 @@ class OrdenProduccion extends Model
                 $orden->numero_orden = self::generarCodigoOrden();
             }
         });
+
+        static::updated(function (self $orden): void {
+            if (! $orden->wasChanged('estado')) {
+                return;
+            }
+
+            $estadoAnterior = (string) $orden->getOriginal('estado');
+            $estadoActual = (string) $orden->estado;
+
+            if (self::esEstadoFinalizado($estadoAnterior) && ! self::esEstadoFinalizado($estadoActual)) {
+                self::ocultarTerminadosPorReapertura($orden->id);
+            }
+        });
     }
 
     // ============ RELATIONSHIPS ============
@@ -145,6 +158,14 @@ class OrdenProduccion extends Model
     public function trazabilidadEtapas(): HasMany
     {
         return $this->hasMany(TrazabilidadEtapa::class, 'orden_produccion_id');
+    }
+
+    /**
+     * Alias de compatibilidad para código legado.
+     */
+    public function etapasTrazabilidad(): HasMany
+    {
+        return $this->trazabilidadEtapas();
     }
 
     /**
@@ -329,5 +350,24 @@ class OrdenProduccion extends Model
             $this->porcentaje_completado = ($this->etapas_completadas / $this->etapas_totales) * 100;
         }
         $this->save();
+    }
+
+    private static function ocultarTerminadosPorReapertura(int $ordenId): void
+    {
+        $productoIds = ProductoTerminado::query()
+            ->where('orden_produccion_id', $ordenId)
+            ->pluck('id');
+
+        if ($productoIds->isEmpty()) {
+            return;
+        }
+
+        InventarioProductoTerminado::query()
+            ->whereIn('producto_terminado_id', $productoIds)
+            ->delete();
+
+        ProductoTerminado::query()
+            ->whereIn('id', $productoIds)
+            ->delete();
     }
 }

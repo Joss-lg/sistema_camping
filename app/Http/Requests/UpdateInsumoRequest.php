@@ -19,7 +19,7 @@ class UpdateInsumoRequest extends FormRequest
             'codigo_insumo' => ['sometimes', 'string', 'max:30', 'unique:insumos,codigo_insumo,' . $insumoId],
             'nombre' => ['sometimes', 'string', 'max:150'],
             'descripcion' => ['nullable', 'string'],
-            'especificaciones_tecnicas' => ['nullable', 'array'],
+            'especificaciones_tecnicas' => ['nullable', 'string'],
             'categoria_insumo_id' => ['sometimes', 'integer', 'exists:categorias_insumo,id'],
             'unidad_medida_id' => ['sometimes', 'integer', 'exists:unidades_medida,id'],
             'tipo_producto_id' => ['nullable', 'integer', 'exists:tipos_producto,id'],
