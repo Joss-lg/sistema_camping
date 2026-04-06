@@ -1,4 +1,4 @@
-@extends('layouts.app')
+N@extends('layouts.app')
 
 @section('content')
 <div class="lc-page space-y-6">

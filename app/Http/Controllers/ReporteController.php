@@ -160,15 +160,19 @@ class ReporteController extends Controller
      */
     private function resolverRango(Request $request): array
     {
-        $from = (string) $request->query('from', now()->startOfMonth()->toDateString());
-        $to = (string) $request->query('to', now()->toDateString());
+        $hoy = now();
+        $fromDefault = $hoy->copy()->subDay()->toDateString();
+        $toDefault = $hoy->toDateString();
+
+        $from = (string) $request->query('from', $fromDefault);
+        $to = (string) $request->query('to', $toDefault);
 
         if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
-            $from = now()->startOfMonth()->toDateString();
+            $from = $fromDefault;
         }
 
         if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
-            $to = now()->toDateString();
+            $to = $toDefault;
         }
 
         if ($from > $to) {
