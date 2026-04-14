@@ -3,6 +3,7 @@
 namespace App\Http\Controllers; 
 
 use App\Models\ConsumoMaterial;
+use App\Models\EtapaProduccionPlantilla;
 use App\Models\OrdenProduccion;
 use App\Models\ProductoTerminado;
 use App\Models\TrazabilidadEtapa;
@@ -135,10 +136,7 @@ class TrazabilidadController extends Controller
 	private function obtenerOrdenesTrazabilidad(Request $request): Collection
 	{
 		$query = OrdenProduccion::query()
-			->where(function ($subQuery): void {
-				$subQuery->whereNull('notas')
-					->orWhereNotIn('notas', ['Plantilla BOM (no ejecutar)', 'Orden base generada para gestión BOM.']);
-			})
+			->where('es_plantilla_bom', false)
 			->with([
 				'tipoProducto:id,nombre,slug',
 				'user:id,name',
@@ -350,12 +348,13 @@ class TrazabilidadController extends Controller
 
 	private function construirTimelineEtapasFallback(OrdenProduccion $orden): Collection
 	{
-		$etapaActual = (string) ($orden->etapa_fabricacion_actual ?: self::ETAPAS_FABRICACION[0]);
+		$etapasBase = $this->obtenerEtapasBaseParaOrden($orden);
+		$etapaActual = (string) ($orden->etapa_fabricacion_actual ?: $etapasBase[0]);
 		$estadoOrden = mb_strtolower((string) $orden->estado);
-		$posicionActual = array_search($etapaActual, self::ETAPAS_FABRICACION, true);
+		$posicionActual = array_search($etapaActual, $etapasBase, true);
 		$posicionActual = $posicionActual === false ? 0 : $posicionActual;
 
-		return collect(self::ETAPAS_FABRICACION)
+		return collect($etapasBase)
 			->values()
 			->map(function (string $etapa, int $index) use ($orden, $posicionActual, $estadoOrden): object {
 				$estado = 'Pendiente';
@@ -428,11 +427,13 @@ class TrazabilidadController extends Controller
 		}
 
 		$etapaActual = (string) ($orden->etapa_fabricacion_actual ?: self::ETAPAS_FABRICACION[0]);
-		$posicionActual = array_search($etapaActual, self::ETAPAS_FABRICACION, true);
+		$etapasBase = $this->obtenerEtapasBaseParaOrden($orden);
+		$etapaActual = (string) ($orden->etapa_fabricacion_actual ?: $etapasBase[0]);
+		$posicionActual = array_search($etapaActual, $etapasBase, true);
 		$posicionActual = $posicionActual === false ? 0 : $posicionActual;
 		$estadoOrden = mb_strtolower((string) $orden->estado);
 
-		return collect(self::ETAPAS_FABRICACION)
+		return collect($etapasBase)
 			->values()
 			->map(function (string $nombreEtapa, int $index) use ($estadoOrden, $posicionActual): object {
 				$estadoUi = 'pendiente';
@@ -474,5 +475,26 @@ class TrazabilidadController extends Controller
 			'total_pasos' => $stepperEtapas->count(),
 			'etapa_actual' => (string) ($orden->etapa_fabricacion_actual ?: self::ETAPAS_FABRICACION[0]),
 		];
+	}
+
+	/**
+	 * @return array<int, string>
+	 */
+	private function obtenerEtapasBaseParaOrden(OrdenProduccion $orden): array
+	{
+		$etapasPlantilla = EtapaProduccionPlantilla::query()
+			->where('tipo_producto_id', $orden->tipo_producto_id)
+			->where('activo', true)
+			->orderBy('numero_secuencia')
+			->pluck('nombre')
+			->filter(fn ($nombre): bool => trim((string) $nombre) !== '')
+			->values()
+			->all();
+
+		if (! empty($etapasPlantilla)) {
+			return array_map(fn ($nombre): string => (string) $nombre, $etapasPlantilla);
+		}
+
+		return self::ETAPAS_FABRICACION;
 	}
 }

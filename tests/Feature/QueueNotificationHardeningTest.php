@@ -17,9 +17,7 @@ use App\Models\TipoProducto;
 use App\Models\UbicacionAlmacen;
 use App\Models\UnidadMedida;
 use App\Models\User;
-use App\Notifications\CostosPromedioCalculadosNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class QueueNotificationHardeningTest extends TestCase
@@ -28,8 +26,6 @@ class QueueNotificationHardeningTest extends TestCase
 
     public function test_calcular_costos_job_actualiza_costos_y_notifica_solo_roles_objetivo(): void
     {
-        Notification::fake();
-
         $rolAdmin = Role::query()->create([
             'nombre' => 'Super Administrador',
             'slug' => 'super_admin',
@@ -141,8 +137,27 @@ class QueueNotificationHardeningTest extends TestCase
 
         $this->assertEquals(100.0, (float) $insumo->precio_costo);
 
-        Notification::assertSentTo([$admin, $gerente], CostosPromedioCalculadosNotification::class);
-        Notification::assertNotSentTo($operario, CostosPromedioCalculadosNotification::class);
+        $notificacionesAdmin = NotificacionSistema::query()
+            ->where('modulo', 'Compras')
+            ->where('user_id', $admin->id)
+            ->where('metadata->origen', 'job.calcular_costos_promedio')
+            ->get();
+
+        $notificacionesGerente = NotificacionSistema::query()
+            ->where('modulo', 'Compras')
+            ->where('user_id', $gerente->id)
+            ->where('metadata->origen', 'job.calcular_costos_promedio')
+            ->get();
+
+        $notificacionesOperario = NotificacionSistema::query()
+            ->where('modulo', 'Compras')
+            ->where('user_id', $operario->id)
+            ->where('metadata->origen', 'job.calcular_costos_promedio')
+            ->get();
+
+        $this->assertCount(1, $notificacionesAdmin);
+        $this->assertCount(1, $notificacionesGerente);
+        $this->assertCount(0, $notificacionesOperario);
     }
 
     public function test_verificar_stock_bajo_terminados_no_duplica_notificaciones_el_mismo_dia(): void

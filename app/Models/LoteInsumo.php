@@ -11,6 +11,10 @@ class LoteInsumo extends Model
 {
     use SoftDeletes;
 
+    public const ESTADO_CALIDAD_ACEPTADO = 'Aceptado';
+    public const ESTADO_CALIDAD_DUDA = 'Duda';
+    public const ESTADO_CALIDAD_RECHAZADO = 'Rechazado';
+
     protected $table = 'lotes_insumos';
 
     protected $fillable = [
@@ -87,6 +91,11 @@ class LoteInsumo extends Model
         return $this->hasMany(MovimientoInventario::class, 'lote_insumo_id');
     }
 
+    public function evaluacionesCalidad(): HasMany
+    {
+        return $this->hasMany(CalidadMaterialEvaluacion::class, 'lote_insumo_id');
+    }
+
     // Phase 5 relationships
     public function consumosMateriales(): HasMany
     {
@@ -102,17 +111,26 @@ class LoteInsumo extends Model
 
     public function scopeAceptados($query)
     {
-        return $query->where('estado_calidad', 'Aceptado');
+        return $query->where('estado_calidad', self::ESTADO_CALIDAD_ACEPTADO);
     }
 
     public function scopeRechazados($query)
     {
-        return $query->where('estado_calidad', 'Rechazado');
+        return $query->where('estado_calidad', self::ESTADO_CALIDAD_RECHAZADO);
     }
 
     public function scopeEnDuda($query)
     {
-        return $query->where('estado_calidad', 'Duda');
+        return $query->where('estado_calidad', self::ESTADO_CALIDAD_DUDA);
+    }
+
+    public static function estadoCalidadDesdeResultado(string $resultado): string
+    {
+        return match (mb_strtoupper(trim($resultado))) {
+            'RECHAZADO' => self::ESTADO_CALIDAD_RECHAZADO,
+            'OBSERVADO' => self::ESTADO_CALIDAD_DUDA,
+            default => self::ESTADO_CALIDAD_ACEPTADO,
+        };
     }
 
     public function scopeVencido($query)
@@ -171,7 +189,10 @@ class LoteInsumo extends Model
         if (! $this->tieneStockSuficiente($cantidad)) {
             return false;
         }
+
+        // Keep consumed and remaining stock aligned in the same mutation.
         $this->cantidad_consumida += $cantidad;
+        $this->cantidad_en_stock = max(0, (float) $this->cantidad_en_stock - (float) $cantidad);
         $this->save();
         return true;
     }

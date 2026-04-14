@@ -6,7 +6,6 @@ use App\Models\Insumo;
 use App\Models\CategoriaInsumo;
 use App\Models\UnidadMedida;
 use App\Models\Proveedor;
-use App\Models\TipoProducto;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -27,12 +26,9 @@ class InsumoSeeder extends Seeder
         $unidadPz = UnidadMedida::where('abreviatura', 'pz')->first();
         $unidadLitro = UnidadMedida::where('abreviatura', 'L')->first();
 
-        $proveedorTMT = Proveedor::where('codigo_proveedor', 'PROV-001')->first();
-        $proveedorMEN = Proveedor::where('codigo_proveedor', 'PROV-002')->first();
-        $proveedorHPI = Proveedor::where('codigo_proveedor', 'PROV-003')->first();
-
-        $tipoMochila = TipoProducto::where('slug', 'mochila')->first();
-        $tipoCarpa = TipoProducto::where('slug', 'carpa')->first();
+        $proveedorTMT = Proveedor::where('razon_social', 'Textiles y Manufactura S.A. de C.V.')->first();
+        $proveedorMEN = Proveedor::where('razon_social', 'Estructuras Metálicas del Noreste S.A.')->first();
+        $proveedorHPI = Proveedor::where('razon_social', 'Herrajes y Accesorios Importados S.A. de C.V.')->first();
 
         $insumos = [
             // Textiles
@@ -42,7 +38,6 @@ class InsumoSeeder extends Seeder
                 'descripcion' => 'Tela seda sintética con tratamiento impermeable',
                 'categoria_insumo_id' => $categoriaTextiles?->id,
                 'unidad_medida_id' => $unidadMetro?->id,
-                'tipo_producto_id' => $tipoMochila?->id,
                 'stock_minimo' => 50,
                 'stock_actual' => 150,
                 'proveedor_id' => $proveedorTMT?->id,
@@ -57,7 +52,6 @@ class InsumoSeeder extends Seeder
                 'descripcion' => 'Tela de nylon de alto estirado para detalles',
                 'categoria_insumo_id' => $categoriaTextiles?->id,
                 'unidad_medida_id' => $unidadMetro?->id,
-                'tipo_producto_id' => $tipoCarpa?->id,
                 'stock_minimo' => 30,
                 'stock_actual' => 80,
                 'proveedor_id' => $proveedorTMT?->id,
@@ -73,7 +67,6 @@ class InsumoSeeder extends Seeder
                 'descripcion' => 'Varillas para marcos estructurales de carpas',
                 'categoria_insumo_id' => $categoriaEstructuras?->id,
                 'unidad_medida_id' => $unidadMetro?->id,
-                'tipo_producto_id' => $tipoCarpa?->id,
                 'stock_minimo' => 100,
                 'stock_actual' => 250,
                 'proveedor_id' => $proveedorMEN?->id,
@@ -88,7 +81,6 @@ class InsumoSeeder extends Seeder
                 'descripcion' => 'Tubería cuadrada de aluminio para estructuras principales',
                 'categoria_insumo_id' => $categoriaEstructuras?->id,
                 'unidad_medida_id' => $unidadMetro?->id,
-                'tipo_producto_id' => $tipoCarpa?->id,
                 'stock_minimo' => 50,
                 'stock_actual' => 120,
                 'proveedor_id' => $proveedorMEN?->id,
@@ -104,7 +96,6 @@ class InsumoSeeder extends Seeder
                 'descripcion' => 'Hebillas de cierre rápido para correas y cinturones',
                 'categoria_insumo_id' => $categoriaHerrajes?->id,
                 'unidad_medida_id' => $unidadPz?->id,
-                'tipo_producto_id' => $tipoMochila?->id,
                 'stock_minimo' => 500,
                 'stock_actual' => 2000,
                 'proveedor_id' => $proveedorHPI?->id,
@@ -119,7 +110,6 @@ class InsumoSeeder extends Seeder
                 'descripcion' => 'Anillo D de metal para puntos de anclaje',
                 'categoria_insumo_id' => $categoriaHerrajes?->id,
                 'unidad_medida_id' => $unidadPz?->id,
-                'tipo_producto_id' => $tipoMochila?->id,
                 'stock_minimo' => 300,
                 'stock_actual' => 1200,
                 'proveedor_id' => $proveedorHPI?->id,

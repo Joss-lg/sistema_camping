@@ -12,7 +12,6 @@ class LogisticaSeeder extends Seeder
     {
         $proveedores = [
             [
-                'codigo_proveedor' => 'PROV-001',
                 'razon_social' => 'Textiles Técnicos del Norte S.A. de C.V.',
                 'nombre_comercial' => 'TTN Textiles',
                 'rfc' => 'TTN920301AB1',
@@ -24,7 +23,6 @@ class LogisticaSeeder extends Seeder
                 'pais' => 'México',
                 'telefono_principal' => '+52-81-2450-1100',
                 'email_general' => 'ventas@ttntextiles.mx',
-                'sitio_web' => 'https://ttntextiles.mx',
                 'dias_credito' => 30,
                 'limite_credito' => 120000,
                 'descuento_porcentaje' => 5,
@@ -34,7 +32,6 @@ class LogisticaSeeder extends Seeder
                 'notas' => 'Proveedor principal de textiles impermeables.',
             ],
             [
-                'codigo_proveedor' => 'PROV-002',
                 'razon_social' => 'Estructuras Outdoor México S.A. de C.V.',
                 'nombre_comercial' => 'EOM Components',
                 'rfc' => 'EOM890215CD2',
@@ -46,7 +43,6 @@ class LogisticaSeeder extends Seeder
                 'pais' => 'México',
                 'telefono_principal' => '+52-33-3650-8822',
                 'email_general' => 'pedidos@eom.mx',
-                'sitio_web' => 'https://eom.mx',
                 'dias_credito' => 20,
                 'limite_credito' => 90000,
                 'descuento_porcentaje' => 4,
@@ -56,7 +52,6 @@ class LogisticaSeeder extends Seeder
                 'notas' => 'Especializado en varillas y aluminio estructural.',
             ],
             [
-                'codigo_proveedor' => 'PROV-003',
                 'razon_social' => 'Herrajes Industriales del Bajío S.A. de C.V.',
                 'nombre_comercial' => 'HIB México',
                 'rfc' => 'HIB860912EF3',
@@ -68,7 +63,6 @@ class LogisticaSeeder extends Seeder
                 'pais' => 'México',
                 'telefono_principal' => '+52-44-2210-4455',
                 'email_general' => 'atencion@hib.mx',
-                'sitio_web' => 'https://hib.mx',
                 'dias_credito' => 15,
                 'limite_credito' => 65000,
                 'descuento_porcentaje' => 3.5,
@@ -78,7 +72,6 @@ class LogisticaSeeder extends Seeder
                 'notas' => 'Surtido amplio de hebillas, anillos y cierres.',
             ],
             [
-                'codigo_proveedor' => 'PROV-004',
                 'razon_social' => 'Polímeros y Espumas del Pacífico S.A. de C.V.',
                 'nombre_comercial' => 'PESP',
                 'rfc' => 'PEP900514GH4',
@@ -90,7 +83,6 @@ class LogisticaSeeder extends Seeder
                 'pais' => 'México',
                 'telefono_principal' => '+52-22-2144-7788',
                 'email_general' => 'ventas@pesp.mx',
-                'sitio_web' => 'https://pesp.mx',
                 'dias_credito' => 25,
                 'limite_credito' => 70000,
                 'descuento_porcentaje' => 4.5,
@@ -100,7 +92,6 @@ class LogisticaSeeder extends Seeder
                 'notas' => 'Proveedor alterno para materiales espumados.',
             ],
             [
-                'codigo_proveedor' => 'PROV-005',
                 'razon_social' => 'Empaques Sustentables de México S.A. de C.V.',
                 'nombre_comercial' => 'ESM Pack',
                 'rfc' => 'ESM910623IJ5',
@@ -112,7 +103,6 @@ class LogisticaSeeder extends Seeder
                 'pais' => 'México',
                 'telefono_principal' => '+52-72-2355-9021',
                 'email_general' => 'cotizaciones@esmpack.mx',
-                'sitio_web' => 'https://esmpack.mx',
                 'dias_credito' => 35,
                 'limite_credito' => 85000,
                 'descuento_porcentaje' => 6,
@@ -125,7 +115,7 @@ class LogisticaSeeder extends Seeder
 
         foreach ($proveedores as $proveedor) {
             Proveedor::updateOrCreate(
-                ['codigo_proveedor' => $proveedor['codigo_proveedor']],
+                ['razon_social' => $proveedor['razon_social']],
                 $proveedor
             );
         }
@@ -135,8 +125,6 @@ class LogisticaSeeder extends Seeder
                 'codigo_ubicacion' => 'ALM-REC-01',
                 'nombre' => 'Área de Recepción Principal',
                 'tipo' => 'Recepción',
-                'edificio' => 'A',
-                'piso' => '1',
                 'seccion' => 'R1',
                 'estante' => '0',
                 'nivel' => '0',
@@ -148,8 +136,6 @@ class LogisticaSeeder extends Seeder
                 'codigo_ubicacion' => 'ALM-TXT-01',
                 'nombre' => 'Estantería de Textiles',
                 'tipo' => 'Estantería',
-                'edificio' => 'A',
-                'piso' => '1',
                 'seccion' => 'T2',
                 'estante' => '4',
                 'nivel' => '2',
@@ -161,8 +147,6 @@ class LogisticaSeeder extends Seeder
                 'codigo_ubicacion' => 'ALM-PT-01',
                 'nombre' => 'Zona de Producto Terminado',
                 'tipo' => 'Zona Abierta',
-                'edificio' => 'B',
-                'piso' => '1',
                 'seccion' => 'PT',
                 'estante' => '0',
                 'nivel' => '0',

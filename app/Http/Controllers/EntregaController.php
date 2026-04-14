@@ -20,8 +20,8 @@ class EntregaController extends Controller
     public function index(): View
     {
         $user = Auth::user();
-        $userRole = strtoupper((string) ($user?->role?->slug ?: $user?->role?->nombre ?: 'USUARIO'));
         $roleKey = PermisoService::normalizeRoleKey((string) ($user?->role?->slug ?: $user?->role?->nombre));
+        $userRole = $roleKey !== '' ? $roleKey : 'USUARIO';
         $isProveedor = $roleKey === 'PROVEEDOR';
         $proveedorIds = $isProveedor && $user ? $this->resolveProveedorIdsForUser($user) : [];
 
@@ -58,7 +58,9 @@ class EntregaController extends Controller
                     'proveedor' => (object) [
                         'nombre' => $orden->proveedor?->nombre_comercial ?: $orden->proveedor?->razon_social,
                     ],
-                    'url_show' => $canViewOrden ? route('ordenes-compra.show', $orden) : null,
+                    'url_show' => $canViewOrden
+                        ? route('ordenes-compra.show', ['ordenCompra' => $orden, 'origen' => 'entregas'])
+                        : null,
                 ];
             });
 
@@ -85,7 +87,9 @@ class EntregaController extends Controller
                     'fecha_entrega_real' => optional($orden->fecha_entrega_real)->format('Y-m-d') ?: '-',
                     'estado' => (string) $orden->estado,
                     'monto_total' => (float) ($orden->monto_total ?? 0),
-                    'url_show' => $canViewOrden ? route('ordenes-compra.show', $orden) : null,
+                    'url_show' => $canViewOrden
+                        ? route('ordenes-compra.show', ['ordenCompra' => $orden, 'origen' => 'entregas'])
+                        : null,
                 ];
             });
 
@@ -158,11 +162,7 @@ class EntregaController extends Controller
                 'saldo_posterior' => (float) $insumo->stock_actual + $cantidad,
             ]);
 
-            $estadoLote = match ((string) $data['estado_calidad']) {
-                'RECHAZADO' => 'Rechazado',
-                'OBSERVADO' => 'Duda',
-                default => 'Aceptado',
-            };
+            $estadoLote = LoteInsumo::estadoCalidadDesdeResultado((string) $data['estado_calidad']);
 
             $ubicacionId = $insumo->ubicacion_almacen_id
                 ?: UbicacionAlmacen::query()->where('activo', true)->value('id');

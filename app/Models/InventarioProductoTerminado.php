@@ -10,12 +10,20 @@ class InventarioProductoTerminado extends Model
 {
     use SoftDeletes;
 
+    private const EPSILON_STOCK = 0.0001;
+
     public const ESTADO_PENDIENTE_INSPECCION = 'Pendiente Inspección';
     public const ESTADO_EN_ALMACEN = 'En Almacén';
     public const ESTADO_RESERVADO = 'Reservado';
     public const ESTADO_ENVIADO = 'Enviado';
-    public const ESTADO_VENDIDO = 'Vendido';
+    public const ESTADO_TERMINADO = 'Terminado';
     public const ESTADO_DESCARTADO = 'Descartado';
+
+    /** @var array<int, string> */
+    public const ESTADOS_TERMINALES = [
+        self::ESTADO_TERMINADO,
+        self::ESTADO_DESCARTADO,
+    ];
 
     protected $table = 'inventario_productos_terminados';
 
@@ -87,9 +95,19 @@ class InventarioProductoTerminado extends Model
         return $query->where('estado', self::ESTADO_ENVIADO);
     }
 
+    public function scopeTerminados($query)
+    {
+        return $query->where('estado', self::ESTADO_TERMINADO);
+    }
+
     public function scopeVendidos($query)
     {
-        return $query->where('estado', self::ESTADO_VENDIDO);
+        return $this->scopeTerminados($query);
+    }
+
+    public function scopeNoTerminales($query)
+    {
+        return $query->whereNotIn('estado', self::ESTADOS_TERMINALES);
     }
 
     public function scopeTipoProducto($query, $tipoProductoId)
@@ -155,10 +173,11 @@ class InventarioProductoTerminado extends Model
     public function confirmarVenta($cantidad): bool
     {
         if ($this->estado === self::ESTADO_EN_ALMACEN && $this->cantidad_reservada >= $cantidad) {
-            $this->cantidad_en_almacen -= $cantidad;
+            $this->cantidad_en_almacen = max(0, (float) $this->cantidad_en_almacen - (float) $cantidad);
             $this->cantidad_reservada -= $cantidad;
-            if ($this->cantidad_en_almacen === 0) {
-                $this->estado = self::ESTADO_VENDIDO;
+            if ((float) $this->cantidad_en_almacen <= self::EPSILON_STOCK) {
+                $this->cantidad_en_almacen = 0;
+                $this->estado = self::ESTADO_TERMINADO;
             }
             $this->save();
             return true;

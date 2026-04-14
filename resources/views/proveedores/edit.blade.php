@@ -27,45 +27,87 @@
 
             <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div class="lc-field md:col-span-2">
-                    <label for="nombre" class="lc-label">Nombre de la empresa</label>
-                    <input id="nombre" name="nombre" type="text" value="{{ old('nombre', $proveedor->nombre) }}" required class="lc-input" placeholder="Ej: Acampada Libre S.A.">
-                    @error('nombre')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                    <label for="razon_social" class="lc-label">Razon social</label>
+                    <input id="razon_social" name="razon_social" type="text" value="{{ old('razon_social', $proveedor->razon_social) }}" required class="lc-input" placeholder="Ej: Acampada Libre S.A.">
+                    @error('razon_social')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="lc-field">
-                    <label for="contacto" class="lc-label">Persona de contacto</label>
-                    <input id="contacto" name="contacto" type="text" value="{{ old('contacto', $proveedor->contacto) }}" class="lc-input" placeholder="Nombre del agente">
-                    @error('contacto')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                    <label for="nombre_comercial" class="lc-label">Nombre comercial</label>
+                    <input id="nombre_comercial" name="nombre_comercial" type="text" value="{{ old('nombre_comercial', $proveedor->nombre_comercial) }}" class="lc-input" placeholder="Ej: Acampada Libre">
+                    @error('nombre_comercial')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="lc-field">
-                    <label for="email" class="lc-label">Correo electronico</label>
-                    <input id="email" name="email" type="email" value="{{ old('email', $proveedor->email) }}" class="lc-input" placeholder="ventas@proveedor.com">
-                    @error('email')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                    <label for="rfc" class="lc-label">RFC</label>
+                    <input id="rfc" name="rfc" type="text" value="{{ old('rfc', $proveedor->rfc) }}" class="lc-input" maxlength="13" placeholder="XAXX010101000">
+                    @error('rfc')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="lc-field">
-                    <label for="telefono" class="lc-label">Telefono</label>
-                    <input id="telefono" name="telefono" type="text" value="{{ old('telefono', $proveedor->telefono) }}" class="lc-input" placeholder="+52 000 000 0000">
-                    @error('telefono')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                    <label for="tipo_proveedor" class="lc-label">Tipo de proveedor</label>
+                    <input id="tipo_proveedor" name="tipo_proveedor" type="text" value="{{ old('tipo_proveedor', $proveedor->tipo_proveedor) }}" required class="lc-input" maxlength="50" placeholder="General, Materia Prima, Logistica...">
+                    @error('tipo_proveedor')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="lc-field">
-                    <label for="estado_id" class="lc-label">Estado de relacion</label>
-                    <select id="estado_id" name="estado_id" required class="lc-select">
-                        @foreach ($estados as $estado)
-                            <option value="{{ $estado->id }}" {{ (string) old('estado_id', $proveedor->estado_id) === (string) $estado->id ? 'selected' : '' }}>
-                                {{ $estado->nombre }}
+                    <label for="estatus" class="lc-label">Estado de relacion</label>
+                    <select id="estatus" name="estatus" required class="lc-select">
+                        @foreach ($estatuses as $estatus)
+                            <option value="{{ $estatus->nombre }}" {{ old('estatus', $proveedor->estatus) === $estatus->nombre ? 'selected' : '' }}>
+                                {{ $estatus->nombre }}
                             </option>
                         @endforeach
                     </select>
-                    @error('estado_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                    @error('estatus')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="contacto_principal" class="lc-label">Contacto principal</label>
+                    <input id="contacto_principal" name="contacto_principal" type="text" value="{{ old('contacto_principal', $contactoPrincipal?->nombre_completo) }}" class="lc-input" placeholder="Nombre del agente">
+                    @error('contacto_principal')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="email_general" class="lc-label">Correo electronico</label>
+                    <input id="email_general" name="email_general" type="email" value="{{ old('email_general', $proveedor->email_general) }}" class="lc-input" placeholder="ventas@proveedor.com">
+                    @error('email_general')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="telefono_principal" class="lc-label">Telefono principal</label>
+                    <input id="telefono_principal" name="telefono_principal" type="text" value="{{ old('telefono_principal', $proveedor->telefono_principal) }}" class="lc-input" placeholder="+52 000 000 0000">
+                    @error('telefono_principal')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="lc-field md:col-span-2">
                     <label for="direccion" class="lc-label">Direccion fisica</label>
                     <textarea id="direccion" name="direccion" rows="3" class="lc-textarea resize-none" placeholder="Calle, numero, ciudad y CP">{{ old('direccion', $proveedor->direccion) }}</textarea>
                     @error('direccion')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="ciudad" class="lc-label">Ciudad</label>
+                    <input id="ciudad" name="ciudad" type="text" value="{{ old('ciudad', $proveedor->ciudad) }}" class="lc-input" maxlength="100">
+                    @error('ciudad')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="estado" class="lc-label">Estado</label>
+                    <input id="estado" name="estado" type="text" value="{{ old('estado', $proveedor->estado) }}" class="lc-input" maxlength="100">
+                    @error('estado')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="codigo_postal" class="lc-label">Codigo postal</label>
+                    <input id="codigo_postal" name="codigo_postal" type="text" value="{{ old('codigo_postal', $proveedor->codigo_postal) }}" class="lc-input" maxlength="10">
+                    @error('codigo_postal')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="pais" class="lc-label">Pais</label>
+                    <input id="pais" name="pais" type="text" value="{{ old('pais', $proveedor->pais) }}" class="lc-input" maxlength="100">
+                    @error('pais')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="lc-field">
@@ -80,6 +122,18 @@
                     @error('dias_credito')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
+                <div class="lc-field">
+                    <label for="limite_credito" class="lc-label">Limite de credito</label>
+                    <input id="limite_credito" name="limite_credito" type="number" min="0" step="0.0001" value="{{ old('limite_credito', $proveedor->limite_credito) }}" class="lc-input">
+                    @error('limite_credito')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field">
+                    <label for="descuento_porcentaje" class="lc-label">Descuento (%)</label>
+                    <input id="descuento_porcentaje" name="descuento_porcentaje" type="number" min="0" max="100" step="0.01" value="{{ old('descuento_porcentaje', $proveedor->descuento_porcentaje) }}" class="lc-input">
+                    @error('descuento_porcentaje')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
                 <div class="lc-field md:col-span-2">
                     <label for="condiciones_pago" class="lc-label">Condiciones de pago</label>
                     <input id="condiciones_pago" name="condiciones_pago" type="text" value="{{ old('condiciones_pago', $proveedor->condiciones_pago) }}" class="lc-input" placeholder="Ej: Transferencia 50/50, neto 30 dias">
@@ -90,6 +144,18 @@
                     <label for="calificacion" class="lc-label">Calificacion de calidad</label>
                     <input id="calificacion" name="calificacion" type="number" min="0" max="5" step="0.1" value="{{ old('calificacion', $proveedor->calificacion) }}" class="lc-input">
                     @error('calificacion')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field md:col-span-2">
+                    <label for="certificaciones" class="lc-label">Certificaciones</label>
+                    <textarea id="certificaciones" name="certificaciones" rows="2" class="lc-textarea resize-none" placeholder="ISO, NOM, registros sanitarios, etc.">{{ old('certificaciones', $proveedor->certificaciones) }}</textarea>
+                    @error('certificaciones')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field md:col-span-2">
+                    <label for="notas" class="lc-label">Notas internas</label>
+                    <textarea id="notas" name="notas" rows="3" class="lc-textarea resize-none" placeholder="Observaciones operativas, incidencias o acuerdos.">{{ old('notas', $proveedor->notas) }}</textarea>
+                    @error('notas')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
 

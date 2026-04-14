@@ -20,6 +20,8 @@
         </p>
         </div>
         <div class="flex items-center gap-3">
+            <a href="{{ route('produccion.plantillas.index') }}" class="lc-btn-secondary">Plantillas de etapas</a>
+            <a href="{{ route('produccion.bom.index') }}" class="lc-btn-secondary">BOM</a>
             <div class="lc-badge lc-badge-success">Flujo principal</div>
         </div>
     </div>
@@ -110,14 +112,6 @@
                         <div class="lc-field">
                             <label class="lc-label">Fecha esperada</label>
                             <input name="fecha_esperada" type="datetime-local" value="{{ old('fecha_esperada') }}" class="lc-input">
-                        </div>
-                        <div class="lc-field">
-                            <label class="lc-label">Etapa inicial</label>
-                            <select name="etapa_fabricacion_actual" class="lc-select">
-                                @foreach ($etapasFabricacion as $etapaFabricacion)
-                                    <option value="{{ $etapaFabricacion }}" @selected(old('etapa_fabricacion_actual', 'Corte') === $etapaFabricacion)>{{ $etapaFabricacion }}</option>
-                                @endforeach
-                            </select>
                         </div>
                         <div class="lc-field">
                             <label class="lc-label">Turno asignado</label>

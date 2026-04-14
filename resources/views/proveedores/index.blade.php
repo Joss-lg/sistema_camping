@@ -17,7 +17,7 @@
     <section class="lc-toolbar" x-data="{ loading: false }">
         <div>
             <h2 class="lc-section-title">Búsqueda rápida</h2>
-            <p class="lc-section-subtitle">Encuentra proveedores por nombre, contacto o correo para actuar rápido sobre abastecimiento.</p>
+            <p class="lc-section-subtitle">Encuentra proveedores por nombre, RFC, tipo, contacto o correo para actuar rápido sobre abastecimiento.</p>
         </div>
         <form method="GET" action="{{ route('proveedores.index') }}" class="flex w-full flex-col gap-3 lg:max-w-3xl lg:flex-row" x-on:submit="loading = true">
             <div class="relative flex-1">
@@ -26,7 +26,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m1.85-5.4a7.25 7.25 0 1 1-14.5 0 7.25 7.25 0 0 1 14.5 0Z" />
                     </svg>
                 </span>
-                <input type="text" name="q" value="{{ $q }}" placeholder="Buscar por nombre, contacto o correo" class="lc-input pl-10">
+                <input type="text" name="q" value="{{ $q }}" placeholder="Buscar por nombre, RFC, tipo, contacto o correo" class="lc-input pl-10">
             </div>
             <button type="submit" class="lc-btn-secondary min-w-[140px]" x-bind:disabled="loading" x-bind:aria-busy="loading.toString()">
                 <svg x-cloak x-show="loading" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="mr-2 h-4 w-4 animate-spin" stroke="currentColor">
@@ -72,6 +72,8 @@
                             </td>
                             <td>
                                 <div class="font-semibold text-slate-900">{{ $proveedor->nombre }}</div>
+                                <div class="text-xs text-slate-500">RFC: {{ $proveedor->rfc ?: 'Sin RFC' }}</div>
+                                <div class="text-xs text-slate-500">Tipo: {{ $proveedor->tipo_proveedor ?: 'Sin tipo' }}</div>
                                 <div class="text-xs text-slate-500">{{ $proveedor->condiciones_pago ?: 'Sin condición de pago registrada' }}</div>
                             </td>
                             <td>
@@ -88,6 +90,7 @@
                                 <div class="space-y-1 text-sm text-slate-600">
                                     <div>Entrega: <span class="font-semibold text-slate-800">{{ $proveedor->tiempo_entrega_dias }} días</span></div>
                                     <div>Crédito: <span class="font-semibold text-slate-800">{{ $proveedor->dias_credito }} días</span></div>
+                                    <div>Límite: <span class="font-semibold text-slate-800">${{ number_format((float) $proveedor->limite_credito, 2) }}</span></div>
                                 </div>
                             </td>
                             <td>

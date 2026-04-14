@@ -216,19 +216,51 @@
                                     @endif
 
                                     @if ($paso->tipo === 'producto' && ($paso->estado === 'Pendiente Inspección') && \App\Services\PermisoService::canAccessModule(auth()->user(), 'Terminados', 'editar'))
-                                        <form method="POST" action="{{ route('terminados.revision', ['productoTerminado' => $selectedRegistro->producto_terminado_id]) }}" class="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                            @csrf
-                                            @method('PATCH')
-                                            <textarea name="observaciones_calidad" rows="2" placeholder="Observaciones de calidad (opcional)" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
-                                            <div class="flex gap-2">
+                                        <div class="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                            <form method="POST" action="{{ route('terminados.revision', ['productoTerminado' => $selectedRegistro->producto_terminado_id]) }}" class="space-y-2">
+                                                @csrf
+                                                @method('PATCH')
+                                                <textarea name="observaciones_calidad" rows="2" placeholder="Observaciones de calidad (opcional)" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">{{ old('decision') === 'APROBADO' ? old('observaciones_calidad') : '' }}</textarea>
                                                 <button type="submit" name="decision" value="APROBADO" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
                                                     Aprobar producto
                                                 </button>
-                                                <button type="submit" name="decision" value="RECHAZADO" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
-                                                    Rechazar producto
-                                                </button>
-                                            </div>
-                                        </form>
+                                            </form>
+
+                                            <details class="rounded-lg border border-rose-200 bg-rose-50 p-3">
+                                                <summary class="cursor-pointer text-xs font-bold text-rose-700">Rechazar producto y regresar a etapa</summary>
+                                                <form method="POST" action="{{ route('terminados.revision', ['productoTerminado' => $selectedRegistro->producto_terminado_id]) }}" class="mt-3 space-y-2" onsubmit="return confirm('¿Confirmas el rechazo y retorno del producto a la etapa seleccionada?');">
+                                                    @csrf
+                                                    @method('PATCH')
+
+                                                    <label class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Motivo del rechazo</label>
+                                                    <select name="motivo_rechazo" required class="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-rose-400">
+                                                        <option value="">Selecciona un motivo</option>
+                                                        @foreach (['Defecto de calidad', 'Dimensiones fuera de tolerancia', 'Acabado incompleto', 'Material incorrecto', 'Daño durante manipulación', 'Otro'] as $motivo)
+                                                            <option value="{{ $motivo }}" @selected(old('motivo_rechazo') === $motivo)>{{ $motivo }}</option>
+                                                        @endforeach
+                                                    </select>
+
+                                                    <label class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Etapa a la que regresará</label>
+                                                    <select name="etapa_retorno" required class="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-rose-400">
+                                                        <option value="">Selecciona una etapa</option>
+                                                        @foreach ($selectedRegistro->stepper_etapas as $etapaRetorno)
+                                                            @php
+                                                                $valorEtapaRetorno = $etapaRetorno->numero . '|' . $etapaRetorno->nombre;
+                                                            @endphp
+                                                            <option value="{{ $valorEtapaRetorno }}" @selected((string) old('etapa_retorno') === (string) $valorEtapaRetorno)>
+                                                                {{ $etapaRetorno->numero }}. {{ $etapaRetorno->nombre }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+
+                                                    <textarea name="observaciones_calidad" rows="2" placeholder="Detalle adicional del rechazo (opcional)" class="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-rose-400">{{ old('decision') === 'RECHAZADO' ? old('observaciones_calidad') : '' }}</textarea>
+
+                                                    <button type="submit" name="decision" value="RECHAZADO" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+                                                        Enviar rechazo
+                                                    </button>
+                                                </form>
+                                            </details>
+                                        </div>
                                     @endif
 
                                     <div class="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-slate-400 uppercase">

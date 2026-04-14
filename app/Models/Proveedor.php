@@ -13,7 +13,6 @@ class Proveedor extends Model
     protected $table = 'proveedores';
 
     protected $fillable = [
-        'codigo_proveedor',
         'razon_social',
         'nombre_comercial',
         'rfc',
@@ -25,7 +24,6 @@ class Proveedor extends Model
         'pais',
         'telefono_principal',
         'email_general',
-        'sitio_web',
         'dias_credito',
         'tiempo_entrega_dias',
         'limite_credito',

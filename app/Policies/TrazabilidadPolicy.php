@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\TrazabilidadEtapa;
 use App\Models\User;
+use App\Services\PermisoService;
 
 class TrazabilidadPolicy
 {
@@ -32,7 +33,7 @@ class TrazabilidadPolicy
             return false;
         }
 
-        $rolUsuario = mb_strtolower(trim((string) ($user->role?->slug ?: $user->role?->nombre ?: '')));
+        $rolUsuario = mb_strtolower(PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre ?: '')));
         $departamentoUsuario = mb_strtolower(trim((string) ($user->departamento ?? '')));
 
         $areaNormalizada = $this->normalizarArea($areaEtapa);

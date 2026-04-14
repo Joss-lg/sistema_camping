@@ -3,11 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\LoteInsumo;
-use App\Models\User;
-use App\Notifications\LotePorVencerNotification;
+use App\Services\NotificacionSistemaPatternService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Notification;
 
 class VerificarVencimientoLotesJob implements ShouldQueue
 {
@@ -27,7 +25,10 @@ class VerificarVencimientoLotesJob implements ShouldQueue
 
     public function handle(): void
     {
-        $usuariosDestino = $this->obtenerUsuariosDestino();
+        /** @var NotificacionSistemaPatternService $notificacionService */
+        $notificacionService = app(NotificacionSistemaPatternService::class);
+
+        $usuariosDestino = $notificacionService->usuariosActivosPorRoles(['GERENTE_COMPRAS', 'SUPER_ADMIN']);
 
         if ($usuariosDestino->isEmpty()) {
             return;
@@ -58,41 +59,44 @@ class VerificarVencimientoLotesJob implements ShouldQueue
             ->whereDate('fecha_vencimiento', '<=', $fechaLimite)
             ->whereRaw('cantidad_en_stock > 0')
             ->orderBy('id')
-            ->chunkById(200, function ($lotes) use ($usuariosDestino): void {
+            ->chunkById(200, function ($lotes) use ($usuariosDestino, $notificacionService): void {
                 foreach ($lotes as $lote) {
                     $diasRestantes = (int) now()->startOfDay()->diffInDays($lote->fecha_vencimiento, false);
 
-                    Notification::send(
-                        $usuariosDestino,
-                        new LotePorVencerNotification([
-                            'lote_id' => $lote->id,
-                            'numero_lote' => $lote->numero_lote,
-                            'insumo_id' => $lote->insumo_id,
-                            'insumo_nombre' => $lote->insumo?->nombre,
-                            'insumo_codigo' => $lote->insumo?->codigo_insumo,
-                            'categoria_insumo' => $lote->insumo?->categoriaInsumo?->nombre,
-                            'proveedor' => $lote->proveedor?->nombre_comercial ?: $lote->proveedor?->razon_social,
-                            'fecha_vencimiento' => optional($lote->fecha_vencimiento)?->toDateString(),
-                            'cantidad_en_stock' => (float) $lote->cantidad_en_stock,
-                            'estado_calidad' => $lote->estado_calidad,
-                            'dias_restantes' => $diasRestantes,
-                        ])
-                    );
+                    foreach ($usuariosDestino as $usuario) {
+                        $notificacionService->crearSiNoExisteHoy([
+                            'titulo' => 'Lote por vencer',
+                            'mensaje' => sprintf(
+                                'El lote %s del insumo %s vence en %d día(s). Stock: %.4f.',
+                                (string) $lote->numero_lote,
+                                (string) ($lote->insumo?->nombre ?: 'Insumo'),
+                                $diasRestantes,
+                                (float) $lote->cantidad_en_stock
+                            ),
+                            'tipo' => 'Alerta',
+                            'modulo' => 'Compras',
+                            'prioridad' => 'Alta',
+                            'user_id' => (int) $usuario->id,
+                            'role_id' => (int) $usuario->role_id,
+                            'requiere_accion' => true,
+                            'url_accion' => '/insumos-bajo-stock',
+                            'metadata' => [
+                                'lote_id' => (int) $lote->id,
+                                'numero_lote' => (string) $lote->numero_lote,
+                                'insumo_id' => (int) $lote->insumo_id,
+                                'insumo_nombre' => (string) ($lote->insumo?->nombre ?: ''),
+                                'insumo_codigo' => (string) ($lote->insumo?->codigo_insumo ?: ''),
+                                'categoria_insumo' => (string) ($lote->insumo?->categoriaInsumo?->nombre ?: ''),
+                                'proveedor' => (string) ($lote->proveedor?->nombre_comercial ?: $lote->proveedor?->razon_social ?: ''),
+                                'fecha_vencimiento' => optional($lote->fecha_vencimiento)?->toDateString(),
+                                'cantidad_en_stock' => (float) $lote->cantidad_en_stock,
+                                'estado_calidad' => (string) ($lote->estado_calidad ?: ''),
+                                'dias_restantes' => $diasRestantes,
+                                'origen' => 'job.verificar_vencimiento_lotes',
+                            ],
+                        ], 'lote_id', (int) $lote->id);
+                    }
                 }
             });
-    }
-
-    private function obtenerUsuariosDestino()
-    {
-        return User::query()
-            ->select(['id', 'name', 'email', 'role_id', 'activo'])
-            ->with('role:id,nombre,slug')
-            ->where('activo', true)
-            ->whereHas('role', function ($query): void {
-                $query->whereRaw('LOWER(slug) = ?', ['gerente-compras'])
-                    ->orWhereRaw('LOWER(nombre) = ?', ['gerente de compras'])
-                    ->orWhereRaw('LOWER(slug) = ?', ['admin']);
-            })
-            ->get();
     }
 }

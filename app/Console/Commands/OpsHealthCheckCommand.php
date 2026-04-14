@@ -19,12 +19,12 @@ class OpsHealthCheckCommand extends Command
         $errors = [];
 
         $requiredSchedules = [
-            'verificar-stock-bajo-diario',
             'verificar-stock-bajo-terminados',
             'generar-ordenes-compra-automaticas',
             'verificar-ordenes-atrasadas-diario',
             'verificar-vencimiento-lotes-diario',
             'calcular-costos-promedio-semanal',
+            'expirar-y-limpiar-reportes-generados',
         ];
 
         $registered = collect(app(Schedule::class)->events())

@@ -7,46 +7,56 @@ use App\Models\EtapaProduccionPlantilla;
 use App\Models\OrdenProduccion;
 use App\Models\TrazabilidadEtapa;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class GenerarEtapasTrazabilidad
 {
     public function handle(OrdenProduccionCreada $event): void
     {
-        $orden = $event->ordenProduccion;
+        try {
+            $orden = $event->ordenProduccion;
 
-        // Verificar si ya existen etapas para esta orden
-        $yaExisten = $orden->trazabilidadEtapas()->exists();
-        if ($yaExisten) {
-            return;
-        }
+            // Verificar si ya existen etapas para esta orden
+            $yaExisten = $orden->trazabilidadEtapas()->exists();
+            if ($yaExisten) {
+                return;
+            }
 
-        // Obtener plantillas del tipo de producto
-        $plantillas = $this->obtenerPlantillasParaOrden($orden);
+            // Obtener plantillas del tipo de producto
+            $plantillas = $this->obtenerPlantillasParaOrden($orden);
 
-        if ($plantillas->isEmpty()) {
-            return;
-        }
+            if ($plantillas->isEmpty()) {
+                return;
+            }
 
-        // Crear etapas de trazabilidad desde plantillas
-        foreach ($plantillas as $plantilla) {
-            TrazabilidadEtapa::create([
-                'orden_produccion_id' => $orden->id,
-                'etapa_plantilla_id' => $plantilla->id,
-                'numero_secuencia' => $plantilla->numero_secuencia,
-                'numero_ejecucion' => 1,
-                'fecha_inicio_prevista' => now(),
-                'fecha_fin_prevista' => now()->addMinutes((int) $plantilla->duracion_estimada_minutos),
-                'responsable_id' => null,
-                'estado' => 'Pendiente',
+            // Crear etapas de trazabilidad desde plantillas
+            foreach ($plantillas as $plantilla) {
+                TrazabilidadEtapa::create([
+                    'orden_produccion_id' => $orden->id,
+                    'etapa_plantilla_id' => $plantilla->id,
+                    'numero_secuencia' => $plantilla->numero_secuencia,
+                    'numero_ejecucion' => 1,
+                    'fecha_inicio_prevista' => now(),
+                    'fecha_fin_prevista' => now()->addMinutes((int) $plantilla->duracion_estimada_minutos),
+                    'responsable_id' => null,
+                    'estado' => 'Pendiente',
+                ]);
+            }
+
+            // Actualizar contador de etapas en la orden
+            $orden->forceFill([
+                'etapas_totales' => $plantillas->count(),
+                'etapas_completadas' => 0,
+                'porcentaje_completado' => 0,
+            ])->save();
+        } catch (\Throwable $e) {
+            Log::error('Listener GenerarEtapasTrazabilidad fallo', [
+                'listener' => self::class,
+                'orden_produccion_id' => (int) ($event->ordenProduccion->id ?? 0),
+                'tipo_producto_id' => (int) ($event->ordenProduccion->tipo_producto_id ?? 0),
+                'error' => $e->getMessage(),
             ]);
         }
-
-        // Actualizar contador de etapas en la orden
-        $orden->forceFill([
-            'etapas_totales' => $plantillas->count(),
-            'etapas_completadas' => 0,
-            'porcentaje_completado' => 0,
-        ])->save();
     }
 
     /**

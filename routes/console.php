@@ -16,7 +16,8 @@ Artisan::command('inspire', function () {
 
 Schedule::job(new VerificarStockBajoJob())
     ->name('verificar-stock-bajo-diario')
-    ->dailyAt('08:00');
+    ->dailyAt('08:00')
+    ->withoutOverlapping();
 
 Schedule::job(new VerificarStockBajoTerminadosJob())
     ->name('verificar-stock-bajo-terminados')
@@ -37,3 +38,8 @@ Schedule::job(new VerificarVencimientoLotesJob())
 Schedule::job(new CalcularCostosPromedioJob())
     ->name('calcular-costos-promedio-semanal')
     ->weeklyOn(1, '08:30');
+
+Schedule::command('reportes:expirar --cleanup-days=30')
+    ->name('expirar-y-limpiar-reportes-generados')
+    ->dailyAt('02:30')
+    ->withoutOverlapping();

@@ -40,7 +40,7 @@ return new class extends Migration
 
             // Status
             $table->string('estado', 50)->default('En Almacén')->index();
-            // Values: 'En Almacén', 'Reservado', 'Enviado', 'Vendido', 'Descartado'
+            // Values: 'En Almacén', 'Reservado', 'Enviado', 'Terminado', 'Descartado'
 
             // Valuation
             $table->decimal('precio_unitario', 15, 4)->default(0);

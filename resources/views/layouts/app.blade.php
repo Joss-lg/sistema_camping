@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title ?? 'LogiCamp' }}</title>
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    @livewireStyles
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         [x-cloak] { display: none !important; }
@@ -26,6 +27,7 @@
     $groupAbastecimientoOpen = request()->routeIs('proveedores.*')
         || request()->routeIs('ordenes-compra.*')
         || request()->routeIs('insumos.*')
+        || request()->routeIs('almacenes.*')
         || request()->routeIs('produccion.bom.*');
     $groupOperacionesOpen = request()->routeIs('dashboard')
         || request()->routeIs('ordenes-produccion.*')
@@ -111,15 +113,7 @@
                     <span>Proveedores</span>
                 </a>
                 @endif
-                @if ($canAccess('Compras'))
-                <a href="{{ route('ordenes-compra.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('ordenes-compra.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386a.75.75 0 0 1 .727.568l.651 2.605m0 0 1.54 6.161a2.25 2.25 0 0 0 2.183 1.703h7.632a2.25 2.25 0 0 0 2.183-1.703l1.154-4.616a.75.75 0 0 0-.727-.932H5.014Zm3.736 11.077a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Zm8.25 0a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Z" />
-                    </svg>
-                    <span>Compras</span>
-                </a>
-                @endif
-                @if ($canAccess('Insumos'))
+                                @if ($canAccess('Insumos'))
                 <a href="{{ route('insumos.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('insumos.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m10.5 6 1.5-1.5m0 0L13.5 6M12 4.5V9m4.5 6 1.5 1.5m0 0L19.5 15M18 16.5V12M6 12H3m3 0 1.5-1.5M6 12l1.5 1.5m8.379-8.379 1.06-1.06a2.121 2.121 0 1 1 3 3l-1.06 1.06m-2.12-2.12L7.5 15.27V18h2.73l9.258-9.258m-2.12-2.121 2.12 2.12" />
@@ -127,6 +121,23 @@
                     <span>Insumos</span>
                 </a>
                 @endif
+                @if ($canAccess('Insumos'))
+                <a href="{{ route('almacenes.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('almacenes.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 21V8.25l3-2.25 3 2.25V21m0-12.75 3-2.25 3 2.25V21m0-12.75 3-2.25 3 2.25V21" />
+                    </svg>
+                    <span>Almacenes</span>
+                </a>
+                @endif
+                @if ($canAccess('Compras'))
+                <a href="{{ route('ordenes-compra.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('ordenes-compra.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386a.75.75 0 0 1 .727.568l.651 2.605m0 0 1.54 6.161a2.25 2.25 0 0 0 2.183 1.703h7.632a2.25 2.25 0 0 0 2.183-1.703l1.154-4.616a.75.75 0 0 0-.727-.932H5.014Zm3.736 11.077a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Zm8.25 0a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Z" />
+                    </svg>
+                    <span>Órdenes de Compras</span>
+                </a>
+                @endif
+
                 @if ($canAccess('Produccion'))
                 <a href="{{ route('produccion.bom.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('produccion.bom.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
@@ -229,6 +240,12 @@
                     <span>Permisos y Usuarios</span>   
                 </a>
                 @endif
+                <a href="{{ route('notificaciones.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('notificaciones.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 1-5.714 0A8.967 8.967 0 0 1 6 9.75a6 6 0 1 1 12 0 8.967 8.967 0 0 1-3.143 7.332ZM9 17.25h6a3 3 0 1 1-6 0Z" />
+                    </svg>
+                    <span>Notificaciones</span>
+                </a>
                 @if ($canAccess('Reportes') || $canAccess('Permisos'))
                 </div>
                 @endif
@@ -316,5 +333,6 @@
     </div>
 
 
+    @livewireScripts
 </body>
 </html>

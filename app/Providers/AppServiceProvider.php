@@ -12,6 +12,7 @@ use App\Policies\OrdenCompraPolicy;
 use App\Policies\OrdenProduccionPolicy;
 use App\Policies\ProveedorPolicy;
 use App\Policies\TrazabilidadPolicy;
+use App\Services\PermisoService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -31,14 +32,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::before(function ($user) {
-            $roleSlug = mb_strtolower((string) ($user?->role?->slug ?? ''));
-            $roleName = mb_strtolower((string) ($user?->role?->nombre ?? ''));
-
-            $isSuperAdmin = in_array($roleSlug, ['admin', 'super_admin', 'super-admin'], true)
-                || str_contains($roleName, 'super admin')
-                || str_contains($roleName, 'super administrador');
-
-            return $isSuperAdmin ? true : null;
+            return PermisoService::isSuperAdmin($user) ? true : null;
         });
 
         Gate::policy(OrdenProduccion::class, OrdenProduccionPolicy::class);

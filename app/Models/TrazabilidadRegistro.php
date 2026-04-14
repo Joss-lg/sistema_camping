@@ -101,9 +101,14 @@ class TrazabilidadRegistro extends Model
         return $query->whereBetween('fecha_evento', [$desde, $hasta]);
     }
 
-    public function scopeRequiereSegimiento($query)
+    public function scopeRequiereSeguimiento($query)
     {
         return $query->where('requiere_seguimiento', true);
+    }
+
+    public function scopeRequiereSegimiento($query)
+    {
+        return $this->scopeRequiereSeguimiento($query);
     }
 
     public function scopeInicios($query)

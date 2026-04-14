@@ -20,7 +20,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
         }
 
         // Mochila workflow
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Corte de Tela',
             'codigo' => 'ETAPA-MOC-001',
             'descripcion' => 'Corte de piezas de tela según patrones',
@@ -34,7 +34,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Costura de Bolsillos',
             'codigo' => 'ETAPA-MOC-002',
             'descripcion' => 'Costura de bolsillos laterales y frontales',
@@ -48,7 +48,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Ensamble de Correas',
             'codigo' => 'ETAPA-MOC-003',
             'descripcion' => 'Costura de correas y ajuste a la mochila',
@@ -62,7 +62,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Inspección de Calidad',
             'codigo' => 'ETAPA-MOC-004',
             'descripcion' => 'Control de calidad de costuras y resistencia',
@@ -76,7 +76,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Empaque Final',
             'codigo' => 'ETAPA-MOC-005',
             'descripcion' => 'Empaque en bolsa y etiquetado',
@@ -91,7 +91,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
         ]);
 
         // Carpa workflow
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Preparación de Varillas',
             'codigo' => 'ETAPA-CAR-001',
             'descripcion' => 'Corte y preparación de varillas de fibra de vidrio',
@@ -105,7 +105,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Armado de Estructura',
             'codigo' => 'ETAPA-CAR-002',
             'descripcion' => 'Montaje de armazón y estructura basica',
@@ -119,7 +119,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Colocación de Tela',
             'codigo' => 'ETAPA-CAR-003',
             'descripcion' => 'Instalación y costura de tela protectora',
@@ -133,7 +133,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Instalación de Accesorios',
             'codigo' => 'ETAPA-CAR-004',
             'descripcion' => 'Colocación de puertas, ventanas y cremalleras',
@@ -147,7 +147,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Prueba de Estanqueidad',
             'codigo' => 'ETAPA-CAR-005',
             'descripcion' => 'Prueba de hermeticidad y resistencia al agua',
@@ -161,7 +161,7 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'activo' => true,
         ]);
 
-        EtapaProduccionPlantilla::create([
+        $this->upsertEtapa([
             'nombre' => 'Empaque para Envío',
             'codigo' => 'ETAPA-CAR-006',
             'descripcion' => 'Plegado y empaque compacto de carpa',
@@ -174,5 +174,23 @@ class EtapaProduccionPlantillaSeeder extends Seeder
             'es_etapa_critica' => false,
             'activo' => true,
         ]);
+    }
+
+    private function upsertEtapa(array $attributes): void
+    {
+        $codigo = (string) ($attributes['codigo'] ?? '');
+
+        if ($codigo === '') {
+            return;
+        }
+
+        $etapa = EtapaProduccionPlantilla::withTrashed()->firstOrNew(['codigo' => $codigo]);
+        $etapa->fill($attributes);
+
+        if ($etapa->trashed()) {
+            $etapa->restore();
+        }
+
+        $etapa->save();
     }
 }

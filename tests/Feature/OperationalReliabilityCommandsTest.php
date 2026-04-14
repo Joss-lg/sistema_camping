@@ -19,12 +19,22 @@ class OperationalReliabilityCommandsTest extends TestCase
 
     public function test_data_quality_command_returns_warning_for_stale_pending_notifications(): void
     {
+        $roleId = DB::table('roles')->insertGetId([
+            'nombre' => 'Rol QA Operacional',
+            'slug' => 'rol-qa-operacional',
+            'descripcion' => 'Rol para pruebas operacionales',
+            'nivel_acceso' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         DB::table('notificaciones_sistema')->insert([
             'titulo' => 'Notificacion vieja',
             'mensaje' => 'Pendiente de atencion',
             'tipo' => 'Alerta',
             'modulo' => 'Sistema',
             'prioridad' => 'Alta',
+            'role_id' => $roleId,
             'estado' => 'Pendiente',
             'requiere_accion' => false,
             'created_at' => now()->subDays(8),

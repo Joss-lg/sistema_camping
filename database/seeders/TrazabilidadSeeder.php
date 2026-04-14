@@ -43,7 +43,9 @@ class TrazabilidadSeeder extends Seeder
 
         TrazabilidadEtapa::withTrashed()->where('orden_produccion_id', $orden->id)->forceDelete();
         ConsumoMaterial::where('orden_produccion_id', $orden->id)->delete();
-        ProductoTerminado::where('orden_produccion_id', $orden->id)->delete();
+        ProductoTerminado::withTrashed()
+            ->where('orden_produccion_id', $orden->id)
+            ->forceDelete();
 
         // Crear etapas de trazabilidad para la orden
         $etapas = $orden->tipoProducto->etapasProduccionPlantilla()->get();

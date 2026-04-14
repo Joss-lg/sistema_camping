@@ -63,6 +63,83 @@ Lineamientos de dominio:
 - Dashboard, reportes y trazabilidad deben mostrar operaciones del catalogo de camping, no un producto unico de ejemplo.
 - Los datos de demostracion deben poblar varios productos de acampar para validar todo el flujo E2E.
 
+---
+
+## 0) Estado de cambios recientes (13-04-2026 en adelante)
+
+### Cambios completados (limpieza de campos innecesarios)
+
+| Campo Eliminado | Alcance | Motivo | Evidencia |
+|---|---|---|---|
+| `edificio`, `piso` (ubicaciones_almacen) | 7 archivos + 2 seeders | Campos no operativos; sin impacto en flujos de compras/producción/inventario | Migrations: 2026_04_13_000001_drop_edificio_piso_from_ubicaciones_almacen_table.php |
+| `tipo_producto_id` (insumos) | 5 archivos + 1 seeder | Campo redundante (nullable); insumos se clasifican por categoría, no por tipo de producto terminado | Migrations: 2026_04_13_000002_drop_tipo_producto_from_insumos_table.php |
+
+Archivos tocados durante limpieza:
+- Controllers: InsumoController, UbicacionAlmacenController
+- Requests: StoreInsumoRequest, UpdateInsumoRequest
+- Models: Insumo, UbicacionAlmacen
+- Views: insumos/create.blade.php, almacenes/create.blade.php, almacenes/edit.blade.php, almacenes/index.blade.php
+- Seeders: InsumoSeeder, UbicacionAlmacenSeeder, LogisticaSeeder
+
+✅ Todos los archivos modificados validados sin errores PHP.
+✅ Todas las búsquedas grep confirman campos completamente removidos.
+
+### Clarificaciones clave de producto
+
+**Realizado 13-04-2026:**
+
+1. **Dominio exclusivo de camping**: El sistema SOLO maneja mochilas, carpas, bolsas de dormir, accesorios y equipo outdoor. NO incluye equipo de cocina genérico, iluminación de interior, ni otros productos fuera del rubro.
+
+2. **Seeders como artefacto de desarrollo**: Los datos de seed (ubicaciones, categorías, insumos, órdenes) son SOLO para:
+   - Ambiente local de desarrollo (velocidad inicial).
+   - Pruebas automatizadas (datos consistentes).
+   - NO deben existir en producción real. La empresa ingresa sus propios datos vía UI.
+
+3. **Decisión: Eliminar seeders no-camping**: Las entradas "Equipo Cocina" e "Iluminación" en TipoProductoSeeder deben eliminarse o marcarse como "sin usar" para mantener coherencia de dominio.
+
+### Puntos pendientes identificados
+
+**Pendiente 1: Implementar Master Catálogos (UI CRUD)** (Prioridad Alta)
+- Ubicaciones de almacén (crear, editar, eliminar)
+- Categorías de insumo (crear, editar, eliminar)
+- Unidades de medida (crear, editar, eliminar)
+- Tipos de producto (crear, editar, eliminar)
+- Razón: Hoy dependen de seeders o carga manual. Producción necesita gestionar estos datos sin intervención de developer.
+
+**Pendiente 2: Análisis de asignación warehouse-by-family** (Prioridad Media)
+- Propuesta: Auto-asignar ubicación de almacén según familia de insumo (Textiles → Almacén A, Herrajes → Almacén B).
+- Impacto identificado:
+  - 🔴 Alto: StockBajoInsumosNotifier (línea 21), OrdenCompraController::procesarRecepcionOrden (línea 507).
+  - 🟡 Medio: Movimientos de inventario, generación de órdenes automáticas.
+  - 🟢 Bajo: Producción (consumo registrado a nivel de orden).
+- Bloqueador: Requiere confirmación y refactoring en 2+ módulos. Pendiente decisión de negocio.
+
+**Pendiente 3: Pruebas sanitarias de seeders** (Prioridad Media)
+- Verificar que cada seeder contiene SOLO datos de dominio camping.
+- Eliminar o comentar aliñas obsoletas (Equipo Cocina, Iluminación, etc.).
+- Agregar comentarios explicativos en seeders sobre por qué cada entrada existe.
+
+**Pendiente 4: Documentar flujos post-limpieza** (Prioridad Baja)
+- Actualizar diagramas de flujo de insumos (ahora sin tipo_producto_id).
+- Documentar impacto de campos eliminados en reportes/dashboards.
+
+### Cómo estamos trabajando (contexto para futuros chats)
+
+**Entorno**: VS Code Live Share (acceso remoto, sin terminal directo).
+
+**Flujo de cambios**:
+1. Identificar campo/funcionalidad con grep_search (busca exhaustiva).
+2. Trazar dependencias: vistas → controllers → requests → models → seeders.
+3. Aplicar cambios por capas (mostrar en vistas, validar en requests, permitir en models, limpiar seeders).
+4. Crear migraciones para cambios de schema con lógica up/down segura.
+5. Validar con get_errors (PHP linting) y grep_search aftermath (confirmar remoción total).
+
+**Decisión de persistencia**: Cambios pequeños se aplican directamente. Cambios de arquitectura (ej. warehouse-by-family) requieren análisis de impacto antes de código.
+
+**Alcance actual**: Mantenimiento (limpiar campos), refactoring (no implementar features nuevas aún). Objetivo es tener base sólida antes de próximas adiciones.
+
+---
+
 ## 1) Meta de producto (Definition of Done)
 La pagina se considera terminada cuando:
 
@@ -201,3 +278,45 @@ Ejecutar una simulacion controlada de 1 hora con estos criterios:
 - 1 flujo completo de produccion -> terminado -> trazabilidad.
 - 1 escenario de stock bajo con notificacion.
 - Cierre con evidencia: logs, jobs ejecutados y resultado de pruebas.
+
+## 9) Cierre funcional puntual - Punto 16 (numeracion OC)
+
+Estado: Implementado y definido funcionalmente.
+
+Criterio funcional:
+
+- Formato: `OC-YYYYMMDD-####`
+- Secuencia diaria: incrementa de forma consecutiva por cada orden creada el mismo dia.
+- Reinicio diario: al cambiar de fecha, la secuencia reinicia en `0001`.
+- Unicidad: no debe repetirse `numero_orden`.
+
+Evidencia tecnica:
+
+- Implementacion en `app/Models/OrdenCompra.php` dentro de `generarNumeroOrden()`.
+- Validacion automatizada agregada en `tests/Feature/OrdenCompraNumeroOrdenTest.php`.
+
+## 10) Tabla de implementacion pendiente (UI y limpieza)
+
+Objetivo:
+
+- Mantener trazabilidad de lo que SI se va a implementar y lo que se puede retirar, sin depender de memoria de equipo.
+
+| Elemento | Existe en codigo | Captura desde UI | Impacto operativo | Decision sugerida | Motivo |
+|---|---|---|---|---|---|
+| Ubicaciones de almacen | Si (`app/Models/UbicacionAlmacen.php`) | No | Alto | Se queda + Implementar | Ya se usa en compras, insumos y terminados; sin CRUD depende de seed o carga manual |
+| Categorias de insumo | Si (`app/Models/CategoriaInsumo.php`) | No | Alto | Se queda + Implementar | Insumos las consume para clasificar y filtrar |
+| Unidades de medida | Si (`app/Models/UnidadMedida.php`) | No | Alto | Se queda + Implementar | Base para compras, produccion e inventario |
+| Tipos de producto | Si (`app/Models/TipoProducto.php`) | No | Alto | Se queda + Implementar | Nucleo para BOM, produccion, reportes y terminados |
+| Configuracion del sistema | Si (`app/Models/ConfiguracionSistema.php`) | No (modulo) | Medio | Se queda + Implementar | Ya se usa para parametros operativos, falta panel de administracion |
+| Contactos de proveedor (multi-contacto) | Si (`app/Models/ContactoProveedor.php`) | Parcial | Medio | Se queda + Mejorar | Hoy se maneja contacto principal; falta gestion completa de contactos |
+| Bandeja de notificaciones del sistema | Si (`app/Models/NotificacionSistema.php`) | No (modulo visible) | Medio | Se queda + Implementar | El sistema genera alertas, pero falta panel de consulta y estado |
+| Compatibilidad legacy (produccion/trazabilidad) | Si | Si (indirecta) | Medio | Se queda temporalmente | Util para datos antiguos; retirar cuando se complete migracion funcional |
+| `verify_user.php` | Si | N/A | Medio (seguridad) | Eliminar | Script auxiliar con credenciales hardcodeadas, fuera del flujo final |
+| `scripts/debug_entregas_filtro.php` | Si | N/A | Bajo | Eliminar o mover a carpeta de soporte interno | Script de depuracion puntual, no parte del flujo funcional |
+
+Prioridad recomendada de ejecucion:
+
+1. CRUD de catálogos maestros: Ubicaciones, Categorias, Unidades, Tipos de producto.
+2. Configuracion del sistema y bandeja de notificaciones.
+3. Mejora de contactos de proveedor.
+4. Limpieza tecnica final (scripts auxiliares y retiro gradual de legacy/fallback).

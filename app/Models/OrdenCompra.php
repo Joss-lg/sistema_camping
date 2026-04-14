@@ -11,6 +11,10 @@ class OrdenCompra extends Model
 {
     use SoftDeletes;
 
+    public const ESTADO_PENDIENTE = 'Pendiente';
+    public const ESTADO_CONFIRMADA = 'Confirmada';
+    public const ESTADO_RECIBIDA = 'Recibida';
+
     protected static function booted(): void
     {
         static::creating(function (self $ordenCompra): void {
@@ -99,17 +103,17 @@ class OrdenCompra extends Model
 
     public function scopePendientes($query)
     {
-        return $query->where('estado', 'Pendiente');
+        return $query->where('estado', self::ESTADO_PENDIENTE);
     }
 
     public function scopeConfirmadas($query)
     {
-        return $query->where('estado', 'Confirmada');
+        return $query->where('estado', self::ESTADO_CONFIRMADA);
     }
 
     public function scopeRecibidas($query)
     {
-        return $query->where('estado', 'Recibida');
+        return $query->where('estado', self::ESTADO_RECIBIDA);
     }
 
     public function scopeProveedor($query, $proveedorId)
@@ -126,18 +130,36 @@ class OrdenCompra extends Model
 
     public function puedeRecibirse(): bool
     {
-        return in_array($this->estado, ['Confirmada', 'Pendiente']);
+        return in_array($this->estado, [self::ESTADO_CONFIRMADA, self::ESTADO_PENDIENTE], true);
     }
 
     public function puedeModificarse(): bool
     {
-        return in_array($this->estado, ['Pendiente', 'Confirmada']);
+        return in_array($this->estado, [self::ESTADO_PENDIENTE, self::ESTADO_CONFIRMADA], true);
     }
 
     private static function generarNumeroOrden(): string
     {
+        $prefijo = 'OC-' . now()->format('Ymd') . '-';
+
+        $ultimoNumeroDelDia = self::query()
+            ->where('numero_orden', 'like', $prefijo . '%')
+            ->orderByDesc('numero_orden')
+            ->value('numero_orden');
+
+        $secuencia = 1;
+
+        if (is_string($ultimoNumeroDelDia) && str_starts_with($ultimoNumeroDelDia, $prefijo)) {
+            $sufijo = substr($ultimoNumeroDelDia, strlen($prefijo));
+
+            if (ctype_digit($sufijo)) {
+                $secuencia = ((int) $sufijo) + 1;
+            }
+        }
+
         do {
-            $numero = 'OC-' . now()->format('Ymd') . '-' . random_int(1000, 9999);
+            $numero = $prefijo . str_pad((string) $secuencia, 4, '0', STR_PAD_LEFT);
+            $secuencia++;
         } while (self::query()->where('numero_orden', $numero)->exists());
 
         return $numero;

@@ -16,6 +16,10 @@
         ];
     @endphp
 
+    <div class="mb-6">
+        <livewire:dashboard-logistica-mochilas />
+    </div>
+
     <div class="lc-page">
         <header class="lc-page-header">
             <div>

@@ -3,11 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\OrdenProduccion;
-use App\Models\User;
-use App\Notifications\OrdenProduccionAtrasadaNotification;
+use App\Services\NotificacionSistemaPatternService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Notification;
 
 class VerificarOrdenesAtrasadasJob implements ShouldQueue
 {
@@ -27,7 +25,10 @@ class VerificarOrdenesAtrasadasJob implements ShouldQueue
 
     public function handle(): void
     {
-        $usuariosDestino = $this->obtenerUsuariosDestino();
+        /** @var NotificacionSistemaPatternService $notificacionService */
+        $notificacionService = app(NotificacionSistemaPatternService::class);
+
+        $usuariosDestino = $notificacionService->usuariosActivosPorRoles(['GERENTE_PRODUCCION', 'SUPER_ADMIN']);
 
         if ($usuariosDestino->isEmpty()) {
             return;
@@ -51,36 +52,39 @@ class VerificarOrdenesAtrasadasJob implements ShouldQueue
             ->whereDate('fecha_fin_prevista', '<', now()->toDateString())
             ->whereNotIn('estado', OrdenProduccion::ESTADOS_FINALIZADAS)
             ->orderBy('id')
-            ->chunkById(200, function ($ordenes) use ($usuariosDestino): void {
+            ->chunkById(200, function ($ordenes) use ($usuariosDestino, $notificacionService): void {
                 foreach ($ordenes as $orden) {
-                    Notification::send(
-                        $usuariosDestino,
-                        new OrdenProduccionAtrasadaNotification([
-                            'orden_id' => $orden->id,
-                            'numero_orden' => $orden->numero_orden,
-                            'estado' => $orden->estado,
-                            'fecha_fin_prevista' => optional($orden->fecha_fin_prevista)?->toDateString(),
-                            'tipo_producto' => $orden->tipoProducto?->nombre,
-                            'responsable' => $orden->user?->name,
-                            'porcentaje_completado' => (float) $orden->porcentaje_completado,
-                            'prioridad' => $orden->prioridad,
-                        ])
-                    );
+                    foreach ($usuariosDestino as $usuario) {
+                        $notificacionService->crearSiNoExisteHoy([
+                            'titulo' => 'Orden de producción atrasada',
+                            'mensaje' => sprintf(
+                                'La orden %s está atrasada. Estado: %s. Fecha fin prevista: %s. Avance: %.2f%%.',
+                                (string) ($orden->numero_orden ?: ('#' . $orden->id)),
+                                (string) $orden->estado,
+                                (string) (optional($orden->fecha_fin_prevista)?->toDateString() ?: 'N/A'),
+                                (float) $orden->porcentaje_completado
+                            ),
+                            'tipo' => 'Alerta',
+                            'modulo' => 'Produccion',
+                            'prioridad' => 'Alta',
+                            'user_id' => (int) $usuario->id,
+                            'role_id' => (int) $usuario->role_id,
+                            'requiere_accion' => true,
+                            'url_accion' => '/produccion',
+                            'metadata' => [
+                                'orden_id' => (int) $orden->id,
+                                'numero_orden' => (string) $orden->numero_orden,
+                                'estado' => (string) $orden->estado,
+                                'fecha_fin_prevista' => optional($orden->fecha_fin_prevista)?->toDateString(),
+                                'tipo_producto' => (string) ($orden->tipoProducto?->nombre ?: ''),
+                                'responsable' => (string) ($orden->user?->name ?: ''),
+                                'porcentaje_completado' => (float) $orden->porcentaje_completado,
+                                'prioridad_orden' => (string) ($orden->prioridad ?: ''),
+                                'origen' => 'job.verificar_ordenes_atrasadas',
+                            ],
+                        ], 'orden_id', (int) $orden->id);
+                    }
                 }
             });
-    }
-
-    private function obtenerUsuariosDestino()
-    {
-        return User::query()
-            ->select(['id', 'name', 'email', 'role_id', 'activo'])
-            ->with('role:id,nombre,slug')
-            ->where('activo', true)
-            ->whereHas('role', function ($query): void {
-                $query->whereRaw('LOWER(slug) = ?', ['gerente-produccion'])
-                    ->orWhereRaw('LOWER(nombre) = ?', ['gerente de produccion'])
-                    ->orWhereRaw('LOWER(slug) = ?', ['admin']);
-            })
-            ->get();
     }
 }

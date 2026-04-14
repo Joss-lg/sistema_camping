@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\NotificacionSistema;
-use App\Models\Role;
 use App\Models\User;
+use App\Services\PermisoService;
 use Illuminate\Database\Seeder;
 
 class NotificacionSistemaSeeder extends Seeder
@@ -16,7 +16,8 @@ class NotificacionSistemaSeeder extends Seeder
             'admin@camping.local',
             'admin@logicamp.local',
         ])->first();
-        $rolAdmin = Role::whereIn('slug', ['super_admin', 'admin'])->first();
+        $rolAdmin = PermisoService::resolveRoleByInput('SUPER_ADMIN')
+            ?? PermisoService::resolveRoleByInput('ADMIN');
 
         $items = [
             [

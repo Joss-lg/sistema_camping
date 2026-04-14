@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\CatalogNormalizationService;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateInsumoRequest extends FormRequest
@@ -22,7 +23,6 @@ class UpdateInsumoRequest extends FormRequest
             'especificaciones_tecnicas' => ['nullable', 'string'],
             'categoria_insumo_id' => ['sometimes', 'integer', 'exists:categorias_insumo,id'],
             'unidad_medida_id' => ['sometimes', 'integer', 'exists:unidades_medida,id'],
-            'tipo_producto_id' => ['nullable', 'integer', 'exists:tipos_producto,id'],
             'stock_minimo' => ['sometimes', 'numeric', 'min:0'],
             'stock_actual' => ['sometimes', 'numeric', 'min:0'],
             'stock_reservado' => ['nullable', 'numeric', 'min:0'],
@@ -38,4 +38,15 @@ class UpdateInsumoRequest extends FormRequest
             'imagen_url' => ['nullable', 'string', 'max:255'],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'codigo_insumo.unique' => 'Este código de insumo ya existe. Usa uno único.',
+            'categoria_insumo_id.required' => 'Debes seleccionar o crear una categoría.',
+            'unidad_medida_id.required' => 'Debes seleccionar o crear una unidad de medida.',
+            'proveedor_id.required' => 'Debes seleccionar un proveedor.',
+        ];
+    }
 }
+

@@ -4,16 +4,64 @@ namespace App\Services;
 
 use App\Models\Insumo;
 use App\Models\OrdenCompra;
-use App\Models\OrdenCompraDetalle;
-use App\Models\User;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AbastecimientoAutomaticoService
 {
+    private const ERROR_SIN_RESPONSABLE = 'No existe un usuario activo para asignar ordenes automaticas.';
+    private const ERROR_GENERAR_ORDENES_PREFIX = 'Error al generar órdenes: ';
+    private const CONDICION_PAGO_FORMAT = 'Credito a %d dias';
+    private const PROVEEDOR_ESTATUS_ACTIVO = 'activo';
+    /** @var array<int, string> */
+    private const OC_ESTADOS_ABIERTOS = [
+        OrdenCompra::ESTADO_PENDIENTE,
+        OrdenCompra::ESTADO_CONFIRMADA,
+    ];
+
+    public function __construct(
+        private readonly AbastecimientoResponsableResolver $responsableResolver,
+        private readonly AbastecimientoCantidadSugeridaCalculator $cantidadCalculator,
+        private readonly AbastecimientoOrdenAbiertaFilter $ordenAbiertaFilter,
+        private readonly AbastecimientoOrdenCompraPersister $ordenCompraPersister,
+        private readonly AbastecimientoResumenOrdenFactory $resumenOrdenFactory
+    ) {
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function generarOrdenes(bool $dryRun = false): array
+    {
+        try {
+            return DB::transaction(function () use ($dryRun): array {
+                return $this->generarOrdenesInterno($dryRun);
+            }, attempts: 3);
+        } catch (\Exception $e) {
+            Log::error('AbastecimientoAutomaticoService::generarOrdenes - Error crítico', [
+                'error' => $e->getMessage(),
+                'clase' => self::class,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return [
+                'dry_run' => $dryRun,
+                'error' => self::ERROR_GENERAR_ORDENES_PREFIX . $e->getMessage(),
+                'insumos_detectados' => 0,
+                'ordenes_creadas' => 0,
+                'detalles_creados' => 0,
+                'proveedores_omitidos' => 0,
+                'insumos_omitidos_por_orden_abierta' => 0,
+                'ordenes' => [],
+            ];
+        }
+    }
+
+    /**
+     * Lógica interna para generar órdenes de compra automáticas
+     * @return array<string, mixed>
+     */
+    private function generarOrdenesInterno(bool $dryRun = false): array
     {
         $insumosBajoStock = Insumo::query()
             ->with(['proveedor:id,razon_social,nombre_comercial,estatus,dias_credito,tiempo_entrega_dias,condiciones_pago'])
@@ -38,10 +86,10 @@ class AbastecimientoAutomaticoService
             return $resultado;
         }
 
-        $responsableId = $this->resolverResponsableId();
+        $responsableId = $this->responsableResolver->resolve();
 
         if (! $responsableId) {
-            $resultado['error'] = 'No existe un usuario activo para asignar ordenes automaticas.';
+            $resultado['error'] = self::ERROR_SIN_RESPONSABLE;
 
             return $resultado;
         }
@@ -51,168 +99,73 @@ class AbastecimientoAutomaticoService
         foreach ($insumosPorProveedor as $proveedorId => $insumosProveedor) {
             $proveedor = $insumosProveedor->first()?->proveedor;
 
-            if (! $proveedor || mb_strtolower((string) $proveedor->estatus) !== 'activo') {
+            if (! $proveedor || mb_strtolower((string) $proveedor->estatus) !== self::PROVEEDOR_ESTATUS_ACTIVO) {
                 $resultado['proveedores_omitidos']++;
                 continue;
             }
 
-            $insumosDisponibles = $this->filtrarInsumosSinOrdenAbierta($insumosProveedor, (int) $proveedorId, $resultado);
+            $filtrado = $this->ordenAbiertaFilter->filtrar(
+                $insumosProveedor,
+                (int) $proveedorId,
+                self::OC_ESTADOS_ABIERTOS
+            );
+
+            $insumosDisponibles = $filtrado['insumos'];
+            $resultado['insumos_omitidos_por_orden_abierta'] += (int) $filtrado['omitidos'];
 
             if ($insumosDisponibles->isEmpty()) {
                 continue;
             }
 
-            $numeroOrden = $this->generarNumeroOrden();
             $fechaEntrega = now()->addDays(max(1, (int) ($proveedor->tiempo_entrega_dias ?? 3)))->toDateString();
             $condicionesPago = $proveedor->condiciones_pago
-                ?: ('Credito a ' . max(0, (int) ($proveedor->dias_credito ?? 0)) . ' dias');
+                ?: sprintf(self::CONDICION_PAGO_FORMAT, max(0, (int) ($proveedor->dias_credito ?? 0)));
 
-            $resumenOrden = [
-                'numero_orden' => $numeroOrden,
-                'proveedor' => $proveedor->nombre_comercial ?: $proveedor->razon_social,
-                'insumos' => [],
-                'total_cantidad' => 0.0,
-                'subtotal' => 0.0,
-            ];
+            $lineasOrden = collect();
+            $resumenInsumos = [];
 
-            $ordenCompra = null;
-
-            if (! $dryRun) {
-                $ordenCompra = OrdenCompra::query()->create([
-                    'numero_orden' => $numeroOrden,
-                    'proveedor_id' => (int) $proveedorId,
-                    'user_id' => $responsableId,
-                    'fecha_orden' => now(),
-                    'fecha_entrega_prevista' => $fechaEntrega,
-                    'estado' => 'Pendiente',
-                    'impuestos' => 0,
-                    'descuentos' => 0,
-                    'costo_flete' => 0,
-                    'monto_total' => 0,
-                    'notas' => 'Generada automaticamente por stock bajo.',
-                    'condiciones_pago' => $condicionesPago,
-                    'incoterm' => null,
-                ]);
-            }
-
-            foreach ($insumosDisponibles->values() as $index => $insumo) {
-                $cantidadSolicitada = $this->calcularCantidadSolicitada($insumo);
+            foreach ($insumosDisponibles->values() as $insumo) {
+                $cantidadSolicitada = $this->cantidadCalculator->calcular($insumo);
                 $precio = (float) ($insumo->precio_costo ?? $insumo->precio_unitario ?? 0);
                 $subtotalLinea = round($cantidadSolicitada * $precio, 4);
 
-                if (! $dryRun && $ordenCompra) {
-                    OrdenCompraDetalle::query()->create([
-                        'orden_compra_id' => $ordenCompra->id,
-                        'numero_linea' => $index + 1,
-                        'insumo_id' => $insumo->id,
-                        'unidad_medida_id' => (int) $insumo->unidad_medida_id,
-                        'cantidad_solicitada' => $cantidadSolicitada,
-                        'precio_unitario' => $precio,
-                        'descuento_porcentaje' => 0,
-                        'subtotal' => $subtotalLinea,
-                        'estado_linea' => 'Pendiente',
-                        'notas' => 'Sugerida por abastecimiento automatico.',
-                    ]);
-                }
-
-                $resumenOrden['insumos'][] = [
-                    'insumo_id' => $insumo->id,
-                    'codigo' => $insumo->codigo_insumo,
-                    'nombre' => $insumo->nombre,
-                    'stock_actual' => (float) $insumo->stock_actual,
-                    'stock_minimo' => (float) $insumo->stock_minimo,
+                $lineasOrden->push([
+                    'insumo' => $insumo,
                     'cantidad_solicitada' => $cantidadSolicitada,
-                ];
-                $resumenOrden['total_cantidad'] += $cantidadSolicitada;
-                $resumenOrden['subtotal'] += $subtotalLinea;
-            }
-
-            $resumenOrden['total_cantidad'] = round((float) $resumenOrden['total_cantidad'], 4);
-            $resumenOrden['subtotal'] = round((float) $resumenOrden['subtotal'], 4);
-
-            if (! $dryRun && $ordenCompra) {
-                $ordenCompra->update([
-                    'total_items' => count($resumenOrden['insumos']),
-                    'total_cantidad' => $resumenOrden['total_cantidad'],
-                    'subtotal' => $resumenOrden['subtotal'],
-                    'monto_total' => $resumenOrden['subtotal'],
+                    'precio_unitario' => $precio,
+                    'subtotal' => $subtotalLinea,
                 ]);
 
+                $resumenInsumos[] = $this->resumenOrdenFactory->construirLineaResumen($insumo, $cantidadSolicitada);
+            }
+
+            $persistencia = $this->ordenCompraPersister->persistir(
+                $dryRun,
+                (int) $proveedorId,
+                (int) $responsableId,
+                $fechaEntrega,
+                $condicionesPago,
+                $lineasOrden
+            );
+
+            $resumenOrden = $this->resumenOrdenFactory->construirResumenOrden(
+                (string) ($proveedor->nombre_comercial ?: $proveedor->razon_social),
+                $resumenInsumos,
+                [
+                    'numero_orden' => (string) $persistencia['numero_orden'],
+                    'total_cantidad' => (float) $persistencia['total_cantidad'],
+                    'subtotal' => (float) $persistencia['subtotal'],
+                ]
+            );
+
+            if ((bool) $persistencia['orden_creada']) {
                 $resultado['ordenes_creadas']++;
-                $resultado['detalles_creados'] += count($resumenOrden['insumos']);
+                $resultado['detalles_creados'] += (int) $persistencia['detalles_creados'];
             }
 
             $resultado['ordenes'][] = $resumenOrden;
         }
 
         return $resultado;
-    }
-
-    private function resolverResponsableId(): ?int
-    {
-        $usuario = User::query()
-            ->where('activo', true)
-            ->whereHas('role', function ($query): void {
-                $query->whereIn('slug', ['super_admin', 'super-admin', 'supervisor_almacen', 'gerente_produccion']);
-            })
-            ->orderBy('id')
-            ->first();
-
-        if ($usuario) {
-            return (int) $usuario->id;
-        }
-
-        return User::query()
-            ->where('activo', true)
-            ->orderBy('id')
-            ->value('id');
-    }
-
-    /**
-     * @param Collection<int, Insumo> $insumosProveedor
-     */
-    private function filtrarInsumosSinOrdenAbierta(Collection $insumosProveedor, int $proveedorId, array &$resultado): Collection
-    {
-        $ids = $insumosProveedor->pluck('id')->values()->all();
-
-        $insumosConOrdenAbierta = OrdenCompraDetalle::query()
-            ->select('ordenes_compra_detalles.insumo_id')
-            ->join('ordenes_compra', 'ordenes_compra.id', '=', 'ordenes_compra_detalles.orden_compra_id')
-            ->where('ordenes_compra.proveedor_id', $proveedorId)
-            ->whereIn('ordenes_compra.estado', ['Pendiente', 'Confirmada'])
-            ->whereIn('ordenes_compra_detalles.insumo_id', $ids)
-            ->distinct()
-            ->pluck('insumo_id')
-            ->all();
-
-        return $insumosProveedor->reject(function (Insumo $insumo) use ($insumosConOrdenAbierta, &$resultado): bool {
-            $omitido = in_array((int) $insumo->id, $insumosConOrdenAbierta, true);
-            if ($omitido) {
-                $resultado['insumos_omitidos_por_orden_abierta']++;
-            }
-
-            return $omitido;
-        });
-    }
-
-    private function calcularCantidadSolicitada(Insumo $insumo): float
-    {
-        $stockActual = (float) $insumo->stock_actual;
-        $stockMinimo = (float) $insumo->stock_minimo;
-        $cantidadMinOrden = max(1, (int) ($insumo->cantidad_minima_orden ?? 1));
-
-        $objetivo = max($stockMinimo * 2, $stockMinimo + $cantidadMinOrden);
-        $cantidad = max((float) $cantidadMinOrden, $objetivo - $stockActual);
-
-        return round($cantidad, 4);
-    }
-
-    private function generarNumeroOrden(): string
-    {
-        do {
-            $numeroOrden = 'OC-AUTO-' . now()->format('YmdHis') . '-' . random_int(100, 999);
-        } while (OrdenCompra::query()->where('numero_orden', $numeroOrden)->exists());
-
-        return $numeroOrden;
     }
 }

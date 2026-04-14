@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\OrdenCompra;
 use App\Models\User;
+use App\Services\PermisoService;
 use Illuminate\Support\Facades\DB;
 
 class OrdenCompraPolicy
@@ -84,9 +85,9 @@ class OrdenCompraPolicy
 
     private function isProveedorRole(User $user): bool
     {
-        $roleName = mb_strtoupper((string) ($user->role?->slug ?: $user->role?->nombre ?: ''));
+        $roleKey = PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre ?: ''));
 
-        return $roleName === 'PROVEEDOR';
+        return $roleKey === 'PROVEEDOR';
     }
 
     /**

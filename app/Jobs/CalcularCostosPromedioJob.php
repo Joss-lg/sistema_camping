@@ -3,12 +3,10 @@
 namespace App\Jobs;
 
 use App\Models\Insumo;
-use App\Models\User;
-use App\Notifications\CostosPromedioCalculadosNotification;
+use App\Services\NotificacionSistemaPatternService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 
 class CalcularCostosPromedioJob implements ShouldQueue
 {
@@ -28,6 +26,9 @@ class CalcularCostosPromedioJob implements ShouldQueue
 
     public function handle(): void
     {
+        /** @var NotificacionSistemaPatternService $notificacionService */
+        $notificacionService = app(NotificacionSistemaPatternService::class);
+
         // Se toma una ventana reciente de compras recibidas para reflejar costo vigente.
         $desde = now()->subDays(90)->toDateString();
         $cantidadActualizada = 0;
@@ -78,24 +79,33 @@ class CalcularCostosPromedioJob implements ShouldQueue
 
         // Notificar a gerentes de compras y admin
         if ($cantidadActualizada > 0) {
-            $usuarios = User::query()
-                ->select(['id'])
-                ->whereHas('role', function ($query) {
-                    $query->whereIn('slug', ['super_admin', 'gerente_produccion', 'gerente_compras', 'gerente-compras'])
-                        ->orWhereIn('nombre', [
-                            'Super Administrador',
-                            'Gerente de Producción',
-                            'Gerente de Produccion',
-                            'Gerente de Compras',
-                        ]);
-                })
-                ->get();
+            $usuarios = $notificacionService->usuariosActivosPorRoles([
+                'SUPER_ADMIN',
+                'GERENTE_PRODUCCION',
+                'GERENTE_COMPRAS',
+            ]);
 
             if ($usuarios->isNotEmpty()) {
-                Notification::send(
-                    $usuarios,
-                    new CostosPromedioCalculadosNotification($cantidadActualizada)
-                );
+                foreach ($usuarios as $usuario) {
+                    $notificacionService->crearSiNoExisteHoy([
+                        'titulo' => 'Costos promedio actualizados',
+                        'mensaje' => sprintf(
+                            'Se recalcularon costos promedio para %d insumo(s) en la ventana reciente de compras.',
+                            $cantidadActualizada
+                        ),
+                        'tipo' => 'Informativa',
+                        'modulo' => 'Compras',
+                        'prioridad' => 'Media',
+                        'user_id' => (int) $usuario->id,
+                        'role_id' => (int) $usuario->role_id,
+                        'requiere_accion' => false,
+                        'url_accion' => '/reportes',
+                        'metadata' => [
+                            'cantidad_actualizada' => $cantidadActualizada,
+                            'origen' => 'job.calcular_costos_promedio',
+                        ],
+                    ], 'cantidad_actualizada', $cantidadActualizada);
+                }
             }
         }
     }

@@ -119,7 +119,7 @@ class TrazabilidadEtapa extends Model
 
     public function scopeCompletadas($query)
     {
-        return $query->where('estado', 'Finalizada');
+        return $query->whereIn('estado', ['Finalizada', 'Completada']);
     }
 
     public function scopeEsperandoAprobacion($query)
@@ -207,12 +207,13 @@ class TrazabilidadEtapa extends Model
 
     public function estaAtrasada(): bool
     {
-        return now()->isAfter($this->fecha_fin_prevista) && $this->estado !== 'Finalizada';
+        return now()->isAfter($this->fecha_fin_prevista)
+            && ! in_array((string) $this->estado, ['Finalizada', 'Completada'], true);
     }
 
     public function tiempoRestante(): int
     {
-        if ($this->estado === 'Finalizada' || !$this->fecha_fin_prevista) {
+        if (in_array((string) $this->estado, ['Finalizada', 'Completada'], true) || ! $this->fecha_fin_prevista) {
             return 0;
         }
         return max(0, now()->diffInMinutes($this->fecha_fin_prevista));

@@ -52,46 +52,84 @@
             <div class="lc-card-header">
                 <div>
                     <h2 class="lc-section-title">Clasificación</h2>
-                    <p class="lc-section-subtitle">Categoría, unidad de medida y tipo de producto asociado.</p>
+                    <p class="lc-section-subtitle">Categoría y unidad de medida base del insumo. Escribe para buscar o crear nueva.</p>
                 </div>
             </div>
-            <div class="lc-card-body space-y-4">
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="lc-card-body space-y-4" x-data="categoriaUnidadForm()">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {{-- Categoría con autocompletado --}}
                     <div class="lc-field">
                         <label class="lc-label">Categoría <span class="text-red-500">*</span></label>
-                        <select name="categoria_insumo_id" class="lc-select">
-                            <option value="">Selecciona</option>
-                            @foreach($categorias as $categoria)
-                                <option value="{{ $categoria->id }}" @selected(old('categoria_insumo_id') == $categoria->id)>
-                                    {{ $categoria->nombre }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="relative">
+                            <input 
+                                type="text"
+                                x-model="categoriaSearch"
+                                @input="buscarCategorias()" 
+                                @focus="mostrarCategorias = true"
+                                @blur.debounce.500ms="mostrarCategorias = false"
+                                placeholder="Busca o escribe una categoría..." 
+                                class="lc-input w-full">
+                            <input type="hidden" name="categoria_insumo_id" x-model="categoria_insumo_id">
+                            
+                            {{-- Dropdown de resultados --}}
+                            <div 
+                                x-show="mostrarCategorias && categoriasResultados.length > 0" 
+                                class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
+                                <template x-for="cat in categoriasResultados" :key="cat.id">
+                                    <div 
+                                        @click="seleccionarCategoria(cat)"
+                                        class="px-4 py-2 hover:bg-blue-100 cursor-pointer border-b last:border-b-0">
+                                        <div class="font-medium" x-text="cat.nombre"></div>
+                                        <div class="text-xs text-gray-600" x-text="cat.descripcion || ''"></div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            {{-- Mostrar selección actual --}}
+                            <div x-show="categoriaSeleccionada" class="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                                <p class="text-sm text-green-700">
+                                    ✓ Seleccionado: <span x-text="categoriaSeleccionada"></span>
+                                </p>
+                            </div>
+                        </div>
                         @error('categoria_insumo_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
+
+                    {{-- Unidad de medida con autocompletado --}}
                     <div class="lc-field">
                         <label class="lc-label">Unidad de medida <span class="text-red-500">*</span></label>
-                        <select name="unidad_medida_id" class="lc-select">
-                            <option value="">Selecciona</option>
-                            @foreach($unidades as $unidad)
-                                <option value="{{ $unidad->id }}" @selected(old('unidad_medida_id') == $unidad->id)>
-                                    {{ $unidad->nombre }} ({{ $unidad->abreviatura }})
-                                </option>
-                            @endforeach
-                        </select>
+                        <div class="relative">
+                            <input 
+                                type="text"
+                                x-model="unidadSearch"
+                                @input="buscarUnidades()" 
+                                @focus="mostrarUnidades = true"
+                                @blur.debounce.500ms="mostrarUnidades = false"
+                                placeholder="Busca o escribe una unidad (m, kg, pz, etc)..." 
+                                class="lc-input w-full">
+                            <input type="hidden" name="unidad_medida_id" x-model="unidad_medida_id">
+                            
+                            {{-- Dropdown de resultados --}}
+                            <div 
+                                x-show="mostrarUnidades && unidadesResultados.length > 0" 
+                                class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
+                                <template x-for="uni in unidadesResultados" :key="uni.id">
+                                    <div 
+                                        @click="seleccionarUnidad(uni)"
+                                        class="px-4 py-2 hover:bg-blue-100 cursor-pointer border-b last:border-b-0">
+                                        <div class="font-medium" x-text="uni.nombre_completo"></div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            {{-- Mostrar selección actual --}}
+                            <div x-show="unidadSeleccionada" class="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                                <p class="text-sm text-green-700">
+                                    ✓ Seleccionado: <span x-text="unidadSeleccionada"></span>
+                                </p>
+                            </div>
+                        </div>
                         @error('unidad_medida_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                    <div class="lc-field">
-                        <label class="lc-label">Tipo de producto</label>
-                        <select name="tipo_producto_id" class="lc-select">
-                            <option value="">Sin tipo</option>
-                            @foreach($tiposProducto as $tipo)
-                                <option value="{{ $tipo->id }}" @selected(old('tipo_producto_id') == $tipo->id)>
-                                    {{ $tipo->nombre }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('tipo_producto_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
             </div>
@@ -220,8 +258,14 @@
                     </div>
                     <div class="lc-field">
                         <label class="lc-label">Unidad de compra</label>
-                        <input type="text" name="unidad_compra" value="{{ old('unidad_compra', 'pz') }}"
-                               placeholder="pz, m, kg..." maxlength="30" class="lc-input">
+                        <select name="unidad_compra" class="lc-select">
+                            <option value="">Selecciona</option>
+                            @foreach($unidades as $unidad)
+                                <option value="{{ $unidad->abreviatura }}" @selected(old('unidad_compra', 'pz') == $unidad->abreviatura)>
+                                    {{ $unidad->nombre }} ({{ $unidad->abreviatura }})
+                                </option>
+                            @endforeach
+                        </select>
                         @error('unidad_compra')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="lc-field">
@@ -281,4 +325,80 @@
         </div>
     </form>
 </div>
+
+<script>
+    function categoriaUnidadForm() {
+        return {
+            // Categorías
+            categoriaSearch: '',
+            categoriasResultados: [],
+            categoria_insumo_id: '',
+            categoriaSeleccionada: '',
+            mostrarCategorias: false,
+
+            // Unidades
+            unidadSearch: '',
+            unidadesResultados: [],
+            unidad_medida_id: '',
+            unidadSeleccionada: '',
+            mostrarUnidades: false,
+
+            // Búsqueda de categorías
+            async buscarCategorias() {
+                if (this.categoriaSearch.length < 1) {
+                    this.categoriasResultados = [];
+                    return;
+                }
+
+                try {
+                    const response = await fetch(
+                        `/api/catalogs/categorias/buscar?q=${encodeURIComponent(this.categoriaSearch)}`
+                    );
+                    const data = await response.json();
+                    this.categoriasResultados = data.data || [];
+                } catch (error) {
+                    console.error('Error buscando categorías:', error);
+                    this.categoriasResultados = [];
+                }
+            },
+
+            // Búsqueda de unidades
+            async buscarUnidades() {
+                if (this.unidadSearch.length < 1) {
+                    this.unidadesResultados = [];
+                    return;
+                }
+
+                try {
+                    const response = await fetch(
+                        `/api/catalogs/unidades/buscar?q=${encodeURIComponent(this.unidadSearch)}`
+                    );
+                    const data = await response.json();
+                    this.unidadesResultados = data.data || [];
+                } catch (error) {
+                    console.error('Error buscando unidades:', error);
+                    this.unidadesResultados = [];
+                }
+            },
+
+            // Seleccionar categoría
+            seleccionarCategoria(categoria) {
+                this.categoria_insumo_id = categoria.id;
+                this.categoriaSeleccionada = categoria.nombre;
+                this.categoriaSearch = categoria.nombre;
+                this.mostrarCategorias = false;
+                this.categoriasResultados = [];
+            },
+
+            // Seleccionar unidad
+            seleccionarUnidad(unidad) {
+                this.unidad_medida_id = unidad.id;
+                this.unidadSeleccionada = unidad.nombre_completo;
+                this.unidadSearch = unidad.nombre_completo;
+                this.mostrarUnidades = false;
+                this.unidadesResultados = [];
+            }
+        }
+    }
+</script>
 @endsection

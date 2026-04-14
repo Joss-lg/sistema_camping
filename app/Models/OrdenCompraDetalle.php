@@ -10,6 +10,11 @@ class OrdenCompraDetalle extends Model
 {
     use SoftDeletes;
 
+    public const ESTADO_PENDIENTE = 'Pendiente';
+    public const ESTADO_RECIBIDA = 'Recibida';
+    public const ESTADO_ACEPTADA = 'Aceptada';
+    public const ESTADO_RECHAZADA = 'Rechazada';
+
     protected $table = 'ordenes_compra_detalles';
 
     protected $fillable = [
@@ -64,22 +69,22 @@ class OrdenCompraDetalle extends Model
 
     public function scopePendientes($query)
     {
-        return $query->where('estado_linea', 'Pendiente');
+        return $query->where('estado_linea', self::ESTADO_PENDIENTE);
     }
 
     public function scopeRecibidas($query)
     {
-        return $query->where('estado_linea', 'Recibida');
+        return $query->where('estado_linea', self::ESTADO_RECIBIDA);
     }
 
     public function scopeAceptadas($query)
     {
-        return $query->where('estado_linea', 'Aceptada');
+        return $query->where('estado_linea', self::ESTADO_ACEPTADA);
     }
 
     public function scopeRechazadas($query)
     {
-        return $query->where('estado_linea', 'Rechazada');
+        return $query->where('estado_linea', self::ESTADO_RECHAZADA);
     }
 
     // ============ HELPERS ============

@@ -1,7 +1,12 @@
-N@extends('layouts.app')
+@extends('layouts.app')
 
 @section('content')
 <div class="lc-page space-y-6">
+    @php
+        $bloqueadaAprobacion = (bool) ($ordenView->bloqueada_aprobacion ?? false);
+        $bloqueadaCalidad = (bool) ($ordenView->bloqueada_calidad ?? false);
+    @endphp
+
     <div class="lc-page-header">
         <div>
             <div class="lc-kicker">Produccion / seguimiento</div>
@@ -21,12 +26,32 @@ N@extends('layouts.app')
 
     @if ($errors->any())
         <div class="lc-alert lc-alert-danger">
-            <div class="font-semibold">No se pudo registrar el consumo.</div>
+            <div class="font-semibold">No se pudieron guardar los cambios.</div>
+            <p class="mt-1 text-sm">Revisa los campos marcados y corrige los datos para continuar.</p>
             <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
                 @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
+        </div>
+    @endif
+
+    @if ($bloqueadaAprobacion || $bloqueadaCalidad)
+        <div class="lc-alert {{ $bloqueadaCalidad ? 'lc-alert-danger' : 'lc-alert-warning' }}">
+            <div class="font-semibold">
+                {{ $bloqueadaCalidad ? 'Orden bloqueada por control de calidad.' : 'Orden bloqueada por aprobación pendiente.' }}
+            </div>
+            @if ($bloqueadaCalidad)
+                <p class="mt-1 text-sm">{{ $ordenView->motivo_bloqueo_edicion }}</p>
+                <p class="mt-1 text-xs">Acción sugerida: resolver la inspección de calidad para volver a habilitar edición y consumo.</p>
+            @else
+                <p class="mt-1 text-sm">
+                    La asignación operativa puede actualizarse, pero los cambios de estado quedarán en espera.
+                    @if($ordenView->etapa_pendiente_aprobacion)
+                        Etapa pendiente: {{ $ordenView->etapa_pendiente_aprobacion }}.
+                    @endif
+                </p>
+            @endif
         </div>
     @endif
 
@@ -97,20 +122,21 @@ N@extends('layouts.app')
 
                 <div class="lc-field">
                     <label class="lc-label">Etapa de fabricación</label>
-                    <select name="etapa_fabricacion_actual" class="lc-select" @disabled($ordenView->bloqueada_aprobacion)>
-                        @foreach (['Corte', 'Costura', 'Ensamblado', 'Acabado'] as $etapaFabricacion)
-                            <option value="{{ $etapaFabricacion }}" @selected(($ordenView->etapa_fabricacion_actual ?? 'Corte') === $etapaFabricacion)>{{ strtoupper($etapaFabricacion) }}</option>
+                    <select name="etapa_fabricacion_actual" class="lc-select" @disabled($ordenView->edicion_bloqueada)>
+                        @foreach ($etapasFabricacionOrden as $etapaFabricacion)
+                            <option value="{{ $etapaFabricacion }}" @selected(($ordenView->etapa_fabricacion_actual ?? ($etapasFabricacionOrden[0] ?? '')) === $etapaFabricacion)>{{ strtoupper($etapaFabricacion) }}</option>
                         @endforeach
                     </select>
                 </div>
 
                 <div class="lc-field">
                     <label class="lc-label">Estado</label>
-                    <select name="estado" class="lc-select" @disabled($ordenView->bloqueada_aprobacion)>
+                    <select name="estado" class="lc-select" @disabled($ordenView->edicion_bloqueada)>
                         <option value="PENDIENTE" @selected(($ordenView->estado->nombre ?? '') === 'PENDIENTE')>PENDIENTE</option>
                         <option value="EN_PROCESO" @selected(($ordenView->estado->nombre ?? '') === 'EN_PROCESO')>EN PROCESO</option>
-                        <option value="FINALIZADA" @selected(($ordenView->estado->nombre ?? '') === 'FINALIZADA')>FINALIZADA</option>
+                        <option value="FINALIZADA" @selected(($ordenView->estado->nombre ?? '') === 'FINALIZADA')>COMPLETAR ETAPA ACTUAL</option>
                     </select>
+                    <p class="mt-1 text-[11px] text-slate-500">Esta opción completa solo la etapa actual y avanza a la siguiente.</p>
                 </div>
 
                 <div class="lc-field">
@@ -122,17 +148,14 @@ N@extends('layouts.app')
                         step="0.01"
                         value="{{ number_format($ordenView->cantidad_completada, 2, '.', '') }}"
                         class="lc-input"
-                        @disabled($ordenView->bloqueada_aprobacion)
+                        @disabled($ordenView->edicion_bloqueada)
                     >
                 </div>
 
-                @if ($ordenView->bloqueada_aprobacion)
-                    <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                        Esta orden está bloqueada por aprobación pendiente
-                        @if($ordenView->etapa_pendiente_aprobacion)
-                            : {{ $ordenView->etapa_pendiente_aprobacion }}
-                        @endif
-                    </div>
+                @if ($bloqueadaAprobacion || $bloqueadaCalidad)
+                    <p class="text-[11px] {{ $bloqueadaCalidad ? 'text-rose-700' : 'text-amber-700' }}">
+                        Revisa el aviso principal para conocer el bloqueo y el siguiente paso.
+                    </p>
                 @endif
             </article>
 
@@ -141,7 +164,7 @@ N@extends('layouts.app')
 
                 <div class="lc-field">
                     <label class="lc-label">Responsable</label>
-                    <select name="responsable_id" class="lc-select" required>
+                    <select name="responsable_id" class="lc-select" required @disabled($ordenView->edicion_bloqueada)>
                         <option value="">Selecciona responsable</option>
                         @foreach ($usuarios as $usuario)
                             <option value="{{ $usuario->id }}" @selected((string) ($ordenView->responsable->id ?? '') === (string) $usuario->id)>
@@ -153,42 +176,64 @@ N@extends('layouts.app')
 
                 <div class="lc-field">
                     <label class="lc-label">Máquina</label>
-                    <input type="text" name="maquina_asignada" value="{{ $ordenView->maquina_asignada }}" class="lc-input" placeholder="Ej: Máquina costura Juki #2">
+                    <input type="text" name="maquina_asignada" value="{{ $ordenView->maquina_asignada }}" class="lc-input" placeholder="Ej: Máquina costura Juki #2" @disabled($ordenView->edicion_bloqueada)>
                 </div>
 
                 <div class="lc-field">
                     <label class="lc-label">Turno</label>
-                    <select name="turno_asignado" class="lc-select">
+                    <select name="turno_asignado" class="lc-select" @disabled($ordenView->edicion_bloqueada)>
                         <option value="">Sin turno</option>
                         <option value="Manana" @selected(($ordenView->turno_asignado ?? '') === 'Manana')>Mañana</option>
                         <option value="Tarde" @selected(($ordenView->turno_asignado ?? '') === 'Tarde')>Tarde</option>
                         <option value="Noche" @selected(($ordenView->turno_asignado ?? '') === 'Noche')>Noche</option>
                     </select>
                 </div>
-
-                <button type="submit" class="lc-btn-primary w-full">Guardar seguimiento (pasos 1 y 2)</button>
-                @if ($ordenView->bloqueada_aprobacion)
-                    <p class="text-[11px] text-amber-700">Nota: se guardará la asignación, pero el estado no cambiará hasta resolver la aprobación pendiente.</p>
+                @if ($bloqueadaAprobacion || $bloqueadaCalidad)
+                    <p class="text-[11px] {{ $bloqueadaCalidad ? 'text-rose-700' : 'text-amber-700' }}">
+                        Hay restricciones activas en esta orden. Consulta el aviso principal.
+                    </p>
                 @endif
             </article>
+
+            <div class="xl:col-span-2">
+                <button type="submit" class="lc-btn-primary w-full" @disabled($ordenView->edicion_bloqueada)>Guardar seguimiento (pasos 1 y 2)</button>
+            </div>
 
         </form>
 
             @if (($ordenView->estado->nombre ?? '') !== 'FINALIZADA' && ($ordenView->estado->nombre ?? '') !== 'CANCELADA')
-                <form method="POST" action="{{ route('produccion.cancelar', $ordenView->id) }}" onsubmit="return confirm('¿Deseas cancelar esta orden? Se liberarán los materiales reservados.')">
-                    @csrf
-                    <button type="submit" class="lc-btn-danger w-full">Cancelar orden</button>
-                </form>
+                <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-rose-800">Zona de riesgo</h3>
+                            <p class="mt-1 text-xs text-rose-700">
+                                Cancelar una orden detiene su ejecución y marca sus materiales planificados como cancelados.
+                            </p>
+                        </div>
+                        <form method="POST" action="{{ route('produccion.cancelar', $ordenView->id) }}" onsubmit="return confirmarCancelacionOrden({{ $ordenView->id }});" class="flex flex-col items-end gap-2">
+                            @csrf
+                            @method('PATCH')
+                            <label for="confirmar-cancelacion-{{ $ordenView->id }}" class="inline-flex items-center gap-2 text-[11px] text-rose-700">
+                                <input id="confirmar-cancelacion-{{ $ordenView->id }}" type="checkbox" class="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-400" @disabled($ordenView->edicion_bloqueada)>
+                                Entiendo que esta acción no se puede deshacer.
+                            </label>
+                            <button type="submit" class="lc-btn-danger" @disabled($ordenView->edicion_bloqueada)>Cancelar orden</button>
+                        </form>
+                    </div>
+                </div>
             @endif
     </section>
     @else
     <section class="lc-alert lc-alert-warning">
-        Tu rol tiene acceso de solo lectura. Puedes consultar el stepper y materiales, pero no actualizar estado ni asignaciones.
+        Tu rol tiene acceso de solo lectura. Puedes consultar estado, materiales e historial, pero no actualizar seguimiento ni asignaciones.
     </section>
     @endif
 
-    <section class="lc-card p-5">
-        <h2 class="text-base font-bold text-slate-800 mb-4">Paso 3 · Materiales de la orden</h2>
+    <section class="lc-card p-5 text-sm space-y-4">
+        <h2 class="text-base font-bold text-slate-800">Paso 2 y 3 · Materiales y registro de consumo</h2>
+
+        <div>
+            <h3 class="mb-3 text-sm font-semibold text-slate-700">Materiales de la orden</h3>
         @if (($ordenView->materialesPlanificados ?? collect())->isEmpty())
             <p class="text-sm text-slate-500">Esta orden no tiene materiales planificados visibles.</p>
         @else
@@ -205,11 +250,11 @@ N@extends('layouts.app')
                 @endforeach
             </div>
         @endif
-    </section>
+        </div>
 
     @if ($canManage)
-    <section class="lc-card p-5 text-sm space-y-4">
-        <h2 class="text-base font-bold text-slate-800">Paso 4 · Registrar consumo de material</h2>
+        <div class="border-t border-slate-200 pt-4">
+        <h3 class="text-sm font-semibold text-slate-700">Registrar consumo de material</h3>
 
         @if (($ordenView->materialesPlanificados ?? collect())->isEmpty())
             <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
@@ -290,9 +335,18 @@ N@extends('layouts.app')
             <button type="submit" class="lc-btn-secondary w-full border-sky-600 bg-sky-600 text-white hover:bg-sky-700 hover:text-white" @disabled(!$puedeRegistrarConsumo)>
                 Registrar consumo
             </button>
+
+            @if ($bloqueadaCalidad)
+                <p class="text-[11px] text-rose-700">Consumo restringido mientras la inspección de calidad siga pendiente.</p>
+            @endif
         </form>
-    </section>
+        </div>
+    @else
+    <div class="lc-alert lc-alert-warning">
+        Tu rol tiene acceso de solo lectura. Puedes revisar materiales y trazabilidad, pero no registrar consumos.
+    </div>
     @endif
+    </section>
 
     <section class="lc-card p-5 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -349,7 +403,7 @@ N@extends('layouts.app')
         @if ($historialConsumos->isEmpty())
             <div class="lc-empty-state py-8">
                 <div class="lc-empty-title">Sin consumos registrados</div>
-                <p class="lc-empty-copy">Cuando registres material en el Paso 4, aparecerá aquí la línea de tiempo con detalle por evento.</p>
+                <p class="lc-empty-copy">Cuando registres material en esta orden, aparecerá aquí la línea de tiempo con detalle por evento.</p>
             </div>
         @else
             <div class="lc-scrollbar overflow-x-auto rounded-2xl border border-slate-200">
@@ -391,4 +445,25 @@ N@extends('layouts.app')
         @endif
     </section>
 </div>
+
+@once
+    <script>
+        function confirmarCancelacionOrden(ordenId) {
+            const checkbox = document.getElementById('confirmar-cancelacion-' + ordenId);
+            if (checkbox && !checkbox.checked) {
+                alert('Marca la confirmación de riesgo antes de cancelar la orden.');
+                checkbox.focus();
+                return false;
+            }
+
+            const primerConfirm = confirm('¿Confirmas cancelar la orden #' + ordenId + '? Esta acción detendrá el flujo actual.');
+            if (!primerConfirm) {
+                return false;
+            }
+
+            return confirm('Confirmación final: la orden quedará en estado cancelado. ¿Deseas continuar?');
+        }
+    </script>
+@endonce
+
 @endsection

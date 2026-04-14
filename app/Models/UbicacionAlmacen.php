@@ -16,8 +16,6 @@ class UbicacionAlmacen extends Model
         'codigo_ubicacion',
         'nombre',
         'tipo',
-        'edificio',
-        'piso',
         'seccion',
         'estante',
         'nivel',

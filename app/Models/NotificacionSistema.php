@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use InvalidArgumentException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,6 +10,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class NotificacionSistema extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $notificacion): void {
+            if ($notificacion->user_id === null && $notificacion->role_id === null) {
+                throw new InvalidArgumentException('La notificacion debe tener user_id o role_id.');
+            }
+        });
+    }
 
     protected $table = 'notificaciones_sistema';
 

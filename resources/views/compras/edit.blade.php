@@ -34,7 +34,7 @@
 
                 <div class="lc-field">
                     <label class="lc-label">Proveedor</label>
-                    <select name="proveedor_id" class="lc-select">
+                    <select id="proveedor_id" name="proveedor_id" class="lc-select">
                         <option value="">Seleccione proveedor</option>
                         @foreach($proveedores as $proveedor)
                             <option value="{{ $proveedor->id }}" @selected((int) old('proveedor_id', $ordenCompra->proveedor_id) === (int) $proveedor->id)>{{ $proveedor->razon_social }}</option>
@@ -51,8 +51,17 @@
 
                 <div class="lc-field">
                     <label class="lc-label">Fecha de entrega prevista</label>
-                    <input type="date" name="fecha_entrega_prevista" value="{{ old('fecha_entrega_prevista', optional($ordenCompra->fecha_entrega_prevista)->format('Y-m-d')) }}" class="lc-input">
+                    <input id="fecha_entrega_prevista" type="date" name="fecha_entrega_prevista" value="{{ old('fecha_entrega_prevista', optional($ordenCompra->fecha_entrega_prevista)->format('Y-m-d')) }}" class="lc-input">
                     @error('fecha_entrega_prevista')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="lc-field xl:col-span-2">
+                    <div id="proveedor-auto-info" class="hidden rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        <p class="font-semibold text-slate-900">Datos del proveedor seleccionados</p>
+                        <p class="mt-1">Contacto: <span id="proveedor-contacto">N/A</span></p>
+                        <p>Email: <span id="proveedor-email">N/A</span> · Tel: <span id="proveedor-telefono">N/A</span></p>
+                        <p class="mt-1 text-xs text-slate-500">Los campos autocompletados se pueden editar manualmente antes de guardar.</p>
+                    </div>
                 </div>
 
                 <div class="lc-field">
@@ -93,7 +102,7 @@
 
                 <div class="lc-field">
                     <label class="lc-label">Condiciones de pago</label>
-                    <input type="text" name="condiciones_pago" maxlength="100" value="{{ old('condiciones_pago', $ordenCompra->condiciones_pago) }}" class="lc-input">
+                    <input id="condiciones_pago" type="text" name="condiciones_pago" maxlength="100" value="{{ old('condiciones_pago', $ordenCompra->condiciones_pago) }}" class="lc-input">
                     @error('condiciones_pago')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
@@ -103,14 +112,9 @@
                     @error('incoterm')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
 
-                <div class="lc-field">
-                    <label class="lc-label">Folio proveedor</label>
-                    <input type="text" name="numero_folio_proveedor" maxlength="100" value="{{ old('numero_folio_proveedor', $ordenCompra->numero_folio_proveedor) }}" class="lc-input">
-                    @error('numero_folio_proveedor')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
-                </div>
 
                 <div class="lc-field">
-                    <label class="lc-label">Numero de contenedor</label>
+                    <label class="lc-label">clave de rastreo</label>
                     <input type="text" name="numero_contenedor" maxlength="100" value="{{ old('numero_contenedor', $ordenCompra->numero_contenedor) }}" class="lc-input">
                     @error('numero_contenedor')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                 </div>
@@ -244,10 +248,71 @@
                 @error('detalles.*.cantidad_solicitada')<p class="lc-help mt-3 text-red-600">{{ $message }}</p>@enderror
                 @error('detalles.*.precio_unitario')<p class="lc-help mt-3 text-red-600">{{ $message }}</p>@enderror
 
+                @php
+                    $proveedoresMeta = $proveedores->mapWithKeys(function ($proveedor) {
+                        $contactoPrincipal = $proveedor->contactos->firstWhere('es_contacto_principal', true);
+                        $contacto = $contactoPrincipal ?: $proveedor->contactos->first();
+
+                        return [
+                            (string) $proveedor->id => [
+                                'condiciones_pago' => $proveedor->condiciones_pago,
+                                'tiempo_entrega_dias' => (int) ($proveedor->tiempo_entrega_dias ?? 0),
+                                'email_general' => $proveedor->email_general,
+                                'telefono_principal' => $proveedor->telefono_principal,
+                                'contacto_nombre' => $contacto?->nombre_completo,
+                                'contacto_email' => $contacto?->email,
+                                'contacto_telefono' => $contacto?->telefono_movil ?: $contacto?->telefono,
+                            ],
+                        ];
+                    });
+                @endphp
+
                 <script>
                     let detalleIndexCompra = {{ count($detallesFormulario) }};
                     const insumosCompra = @json($insumos);
                     const unidadesCompra = @json($unidades);
+                    const proveedoresMeta = @json($proveedoresMeta);
+                    const camposTocadosProveedor = new Set();
+
+                    function sumarDias(fechaBase, dias) {
+                        const fecha = new Date(fechaBase);
+                        if (Number.isNaN(fecha.getTime())) {
+                            return '';
+                        }
+
+                        fecha.setDate(fecha.getDate() + Math.max(0, dias));
+                        const y = fecha.getFullYear();
+                        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+                        const d = String(fecha.getDate()).padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    }
+
+                    function aplicarDatosProveedor() {
+                        const proveedorSelect = document.getElementById('proveedor_id');
+                        const condicionesInput = document.getElementById('condiciones_pago');
+                        const fechaInput = document.getElementById('fecha_entrega_prevista');
+                        const info = document.getElementById('proveedor-auto-info');
+                        const proveedorId = proveedorSelect?.value ? String(proveedorSelect.value) : '';
+                        const meta = proveedorId ? proveedoresMeta[proveedorId] : null;
+
+                        if (!meta) {
+                            info?.classList.add('hidden');
+                            return;
+                        }
+
+                        if (!camposTocadosProveedor.has('condiciones_pago') && condicionesInput && !condicionesInput.value.trim() && meta.condiciones_pago) {
+                            condicionesInput.value = meta.condiciones_pago;
+                        }
+
+                        if (!camposTocadosProveedor.has('fecha_entrega_prevista') && fechaInput && !fechaInput.value) {
+                            fechaInput.value = sumarDias(new Date(), Number(meta.tiempo_entrega_dias || 0));
+                        }
+
+                        document.getElementById('proveedor-contacto').textContent = meta.contacto_nombre || 'N/A';
+                        document.getElementById('proveedor-email').textContent = meta.contacto_email || meta.email_general || 'N/A';
+                        document.getElementById('proveedor-telefono').textContent = meta.contacto_telefono || meta.telefono_principal || 'N/A';
+                        info?.classList.remove('hidden');
+                    }
 
                     function renumerarDetallesCompra() {
                         const rows = Array.from(document.querySelectorAll('#detalles-body tr'));
@@ -331,6 +396,14 @@
                     }
 
                     window.addEventListener('DOMContentLoaded', () => {
+                        const proveedorSelect = document.getElementById('proveedor_id');
+                        const condicionesInput = document.getElementById('condiciones_pago');
+                        const fechaInput = document.getElementById('fecha_entrega_prevista');
+
+                        proveedorSelect?.addEventListener('change', aplicarDatosProveedor);
+                        condicionesInput?.addEventListener('input', () => camposTocadosProveedor.add('condiciones_pago'));
+                        fechaInput?.addEventListener('input', () => camposTocadosProveedor.add('fecha_entrega_prevista'));
+
                         document.addEventListener('input', (event) => {
                             if (event.target.closest('#detalles-body') || event.target.matches('[data-fin]')) {
                                 calcularResumenOrdenCompra();
@@ -338,6 +411,7 @@
                         });
 
                         calcularResumenOrdenCompra();
+                        aplicarDatosProveedor();
                     });
                 </script>
             </div>

@@ -20,7 +20,6 @@ class Insumo extends Model
         'especificaciones_tecnicas',
         'categoria_insumo_id',
         'unidad_medida_id',
-        'tipo_producto_id',
         'stock_minimo',
         'stock_actual',
         'stock_reservado',
@@ -65,14 +64,6 @@ class Insumo extends Model
     public function unidadMedida(): BelongsTo
     {
         return $this->belongsTo(UnidadMedida::class, 'unidad_medida_id');
-    }
-
-    /**
-     * Tipo de producto al que está orientado el insumo.
-     */
-    public function tipoProducto(): BelongsTo
-    {
-        return $this->belongsTo(TipoProducto::class, 'tipo_producto_id');
     }
 
     /**

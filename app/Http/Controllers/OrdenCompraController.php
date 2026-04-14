@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Http\Requests\StoreOrdenCompraRequest;
 use App\Http\Requests\UpdateOrdenCompraRequest;
+use App\Models\CalidadMaterialEvaluacion;
 use App\Models\Insumo;
 use App\Models\LoteInsumo;
 use App\Models\MovimientoInventario;
@@ -11,14 +13,18 @@ use App\Models\OrdenCompra;
 use App\Models\Proveedor;
 use App\Models\UbicacionAlmacen;
 use App\Models\UnidadMedida;
+use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\View\View;
 
 class OrdenCompraController extends Controller
 {
+	private const NOTE_PREFILL_REABASTECIMIENTO = 'Reabastecimiento por stock bajo desde módulo de Insumos.';
+
 	public function index(Request $request): View
 	{
 		$this->authorize('viewAny', OrdenCompra::class);
@@ -59,9 +65,9 @@ class OrdenCompraController extends Controller
 
 	private function isProveedorRole($user): bool
 	{
-		$roleName = mb_strtoupper((string) ($user?->role?->slug ?: $user?->role?->nombre ?: ''));
+		$roleKey = PermisoService::normalizeRoleKey((string) ($user?->role?->slug ?: $user?->role?->nombre ?: ''));
 
-		return $roleName === 'PROVEEDOR';
+		return $roleKey === 'PROVEEDOR';
 	}
 
 	/**
@@ -98,7 +104,21 @@ class OrdenCompraController extends Controller
 	{
 		$this->authorize('create', OrdenCompra::class);
 
-		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
+		$proveedores = Proveedor::query()
+			->with(['contactos' => function ($query): void {
+				$query->select([
+					'id',
+					'proveedor_id',
+					'nombre_completo',
+					'cargo',
+					'telefono',
+					'telefono_movil',
+					'email',
+					'es_contacto_principal',
+				]);
+			}])
+			->orderBy('razon_social')
+			->get();
 		$insumos = Insumo::query()->with('unidadMedida')->orderBy('nombre')->get();
 		$unidades = UnidadMedida::query()->where('activo', true)->orderBy('nombre')->get();
 
@@ -125,7 +145,7 @@ class OrdenCompraController extends Controller
 					'precio_unitario' => (float) ($insumoPrefill->precio_costo ?? 0),
 					'descuento_porcentaje' => 0,
 					'fecha_entrega_esperada_linea' => now()->addDays(3)->toDateString(),
-					'notas' => 'Reabastecimiento por stock bajo desde módulo de Insumos.',
+					'notas' => self::NOTE_PREFILL_REABASTECIMIENTO,
 				];
 
 				$prefillProveedorId = old('proveedor_id', $insumoPrefill->proveedor_id);
@@ -203,7 +223,81 @@ class OrdenCompraController extends Controller
 
 		$ordenCompra->load(['proveedor', 'user', 'detalles.insumo', 'detalles.unidadMedida', 'lotesInsumos']);
 
-		return view('compras.show', compact('ordenCompra'));
+		$movimientos = MovimientoInventario::query()
+			->with(['insumo:id,nombre', 'loteInsumo:id,numero_lote,estado_calidad', 'user:id,name'])
+			->where('tipo_movimiento', MovimientoInventario::TIPO_ENTRADA)
+			->where('orden_compra_id', $ordenCompra->id)
+			->orderByDesc('fecha_movimiento')
+			->limit(250)
+			->get();
+
+		$evaluaciones = CalidadMaterialEvaluacion::query()
+			->with('user:id,name')
+			->whereIn('movimiento_inventario_id', $movimientos->pluck('id'))
+			->orderByDesc('fecha_evaluacion')
+			->get()
+			->groupBy('movimiento_inventario_id')
+			->map(fn ($items): ?CalidadMaterialEvaluacion => $items->first());
+
+		$registrosCalidad = $movimientos
+			->map(function (MovimientoInventario $movimiento) use ($evaluaciones): object {
+				/** @var CalidadMaterialEvaluacion|null $evaluacion */
+				$evaluacion = $evaluaciones->get($movimiento->id);
+
+				return (object) [
+					'movimiento_id' => $movimiento->id,
+					'fecha_movimiento' => $movimiento->fecha_movimiento,
+					'insumo' => $movimiento->insumo?->nombre ?? 'Insumo',
+					'cantidad' => (float) $movimiento->cantidad,
+					'lote' => $movimiento->loteInsumo?->numero_lote,
+					'estado_lote' => (string) ($movimiento->loteInsumo?->estado_calidad ?: 'Sin estado'),
+					'registrado_por' => $movimiento->user?->name ?? 'Sistema',
+					'evaluacion' => $evaluacion,
+				];
+			})
+			->values();
+
+		$statsCalidad = (object) [
+			'total_entradas' => $movimientos->count(),
+			'evaluadas' => $registrosCalidad->filter(fn (object $item): bool => $item->evaluacion !== null)->count(),
+			'pendientes' => $registrosCalidad->filter(fn (object $item): bool => $item->evaluacion === null)->count(),
+		];
+
+		$canEvaluarCalidad = PermisoService::canAccessModule(Auth::user(), 'Entregas', 'editar');
+
+		return view('compras.show', [
+			'ordenCompra' => $ordenCompra,
+			'registrosCalidad' => $registrosCalidad,
+			'statsCalidad' => $statsCalidad,
+			'criteriosEstandar' => CalidadMaterialEvaluacion::CRITERIOS_ESTANDAR,
+			'canEvaluarCalidad' => $canEvaluarCalidad,
+		]);
+	}
+
+	public function pdf(OrdenCompra $ordenCompra): Response
+	{
+		$this->authorize('view', $ordenCompra);
+
+		$ordenCompra->load([
+			'proveedor.contactos',
+			'user',
+			'detalles.insumo',
+			'detalles.unidadMedida',
+		]);
+
+		$contactoProveedor = $ordenCompra->proveedor?->contactos
+			?->firstWhere('es_contacto_principal', true)
+			?: $ordenCompra->proveedor?->contactos?->first();
+
+		$pdf = Pdf::loadView('compras.pdf_orden', [
+			'ordenCompra' => $ordenCompra,
+			'contactoProveedor' => $contactoProveedor,
+			'fechaGeneracion' => now()->format('d/m/Y H:i'),
+		]);
+
+		$nombreArchivo = sprintf('orden-compra-%s.pdf', $ordenCompra->numero_orden ?: $ordenCompra->id);
+
+		return $pdf->download($nombreArchivo);
 	}
 
 	public function edit(OrdenCompra $ordenCompra): View
@@ -211,7 +305,21 @@ class OrdenCompraController extends Controller
 		$this->authorize('update', $ordenCompra);
 
 		$ordenCompra->load(['detalles']);
-		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
+		$proveedores = Proveedor::query()
+			->with(['contactos' => function ($query): void {
+				$query->select([
+					'id',
+					'proveedor_id',
+					'nombre_completo',
+					'cargo',
+					'telefono',
+					'telefono_movil',
+					'email',
+					'es_contacto_principal',
+				]);
+			}])
+			->orderBy('razon_social')
+			->get();
 		$insumos = Insumo::query()->with('unidadMedida')->orderBy('nombre')->get();
 		$unidades = UnidadMedida::query()->where('activo', true)->orderBy('nombre')->get();
 
@@ -438,7 +546,7 @@ class OrdenCompraController extends Controller
 				'cantidad_en_stock' => $cantidadAceptada,
 				'cantidad_rechazada' => max(0, $cantidadRecibida - $cantidadAceptada),
 				'ubicacion_almacen_id' => $ubicacionFinal,
-				'estado_calidad' => 'Aceptado',
+				'estado_calidad' => LoteInsumo::ESTADO_CALIDAD_ACEPTADO,
 				'user_recepcion_id' => Auth::id(),
 				'activo' => true,
 			]);

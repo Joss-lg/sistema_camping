@@ -93,10 +93,20 @@
                             @endif
                         </div>
                     @endif
-                    <a href="{{ route('produccion.seguimiento', $orden->id) }}"
-                       class="inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-indigo-700 transition hover:-translate-y-0.5 hover:bg-indigo-100">
-                        Gestionar orden
-                    </a>
+
+                    @if ($orden->bloqueada_calidad)
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 p-2 text-[10px] text-rose-700">
+                            {{ $orden->motivo_bloqueo_edicion }}
+                        </div>
+                        <span class="inline-flex cursor-not-allowed items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                            Gestionar orden deshabilitado
+                        </span>
+                    @else
+                        <a href="{{ route('produccion.seguimiento', $orden->id) }}"
+                           class="inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-indigo-700 transition hover:-translate-y-0.5 hover:bg-indigo-100">
+                            Gestionar orden
+                        </a>
+                    @endif
                     <span class="text-[10px] leading-relaxed text-slate-500">Mover etapa, estado, asignación, consumo e historial en la vista detallada.</span>
                 </div>
             </td>

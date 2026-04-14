@@ -7,7 +7,6 @@ use App\Http\Requests\UpdateInsumoRequest;
 use App\Models\CategoriaInsumo;
 use App\Models\Insumo;
 use App\Models\Proveedor;
-use App\Models\TipoProducto;
 use App\Models\UbicacionAlmacen;
 use App\Models\UnidadMedida;
 use Illuminate\Http\RedirectResponse;
@@ -27,9 +26,9 @@ class InsumoController extends Controller
 					$subQuery->whereHas('ordenCompra', function ($ordenCompraQuery) {
 						$ordenCompraQuery->where('estado', 'Confirmada');
 					});
-				},
+				},  
 			], 'cantidad_solicitada')
-			->with(['categoriaInsumo', 'unidadMedida', 'tipoProducto', 'proveedor', 'ubicacionAlmacen'])
+			->with(['categoriaInsumo', 'unidadMedida', 'proveedor', 'ubicacionAlmacen'])
 			->orderBy('nombre');
 
 		if ($request->filled('q')) {
@@ -65,11 +64,10 @@ class InsumoController extends Controller
 
 		$categorias = CategoriaInsumo::query()->orderBy('nombre')->get();
 		$unidades = UnidadMedida::query()->where('activo', true)->orderBy('nombre')->get();
-		$tiposProducto = TipoProducto::query()->where('activo', true)->orderBy('nombre')->get();
 		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
 		$ubicaciones = UbicacionAlmacen::query()->where('activo', true)->orderBy('codigo_ubicacion')->get();
 
-		return view('insumos.create', compact('categorias', 'unidades', 'tiposProducto', 'proveedores', 'ubicaciones'));
+		return view('insumos.create', compact('categorias', 'unidades', 'proveedores', 'ubicaciones'));
 	}
 
 	public function store(StoreInsumoRequest $request): RedirectResponse
@@ -98,7 +96,6 @@ class InsumoController extends Controller
 		$insumo->load([
 			'categoriaInsumo',
 			'unidadMedida',
-			'tipoProducto',
 			'proveedor',
 			'ubicacionAlmacen',
 			'lotesInsumos',
@@ -114,11 +111,10 @@ class InsumoController extends Controller
 
 		$categorias = CategoriaInsumo::query()->orderBy('nombre')->get();
 		$unidades = UnidadMedida::query()->where('activo', true)->orderBy('nombre')->get();
-		$tiposProducto = TipoProducto::query()->where('activo', true)->orderBy('nombre')->get();
 		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
 		$ubicaciones = UbicacionAlmacen::query()->where('activo', true)->orderBy('codigo_ubicacion')->get();
 
-		return view('insumos.edit', compact('insumo', 'categorias', 'unidades', 'tiposProducto', 'proveedores', 'ubicaciones'));
+		return view('insumos.edit', compact('insumo', 'categorias', 'unidades', 'proveedores', 'ubicaciones'));
 	}
 
 	public function update(UpdateInsumoRequest $request, Insumo $insumo): RedirectResponse

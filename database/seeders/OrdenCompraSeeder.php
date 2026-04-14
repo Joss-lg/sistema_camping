@@ -24,8 +24,8 @@ class OrdenCompraSeeder extends Seeder
             'admin@logicamp.local',
             'admin@camping.local',
         ])->first();
-        $proveedorTMT = Proveedor::where('codigo_proveedor', 'PROV-001')->first();
-        $proveedorMEN = Proveedor::where('codigo_proveedor', 'PROV-002')->first();
+        $proveedorTMT = Proveedor::where('razon_social', 'Textiles y Manufactura S.A. de C.V.')->first();
+        $proveedorMEN = Proveedor::where('razon_social', 'Estructuras Metálicas del Noreste S.A.')->first();
 
         $unidadMetro = UnidadMedida::where('abreviatura', 'm')->first();
         $unidadPz = UnidadMedida::where('abreviatura', 'pz')->first();
