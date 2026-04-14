@@ -13,7 +13,7 @@
 
     @include('partials.flash-messages')
 
-    <form method="POST" action="{{ route('insumos.store') }}" class="space-y-5" x-data="{ submitting: false }" x-on:submit="submitting = true">
+    <form method="POST" action="{{ route('insumos.store') }}" class="space-y-5" x-data="insumoForm()" @submit.prevent="resolverYEnviar($el)">
         @csrf
 
         {{-- SECCIÓN 1: IDENTIFICACIÓN --}}
@@ -55,7 +55,7 @@
                     <p class="lc-section-subtitle">Categoría y unidad de medida base del insumo. Escribe para buscar o crear nueva.</p>
                 </div>
             </div>
-            <div class="lc-card-body space-y-4" x-data="categoriaUnidadForm()">
+            <div class="lc-card-body space-y-4">
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {{-- Categoría con autocompletado --}}
                     <div class="lc-field">
@@ -73,7 +73,7 @@
                             
                             {{-- Dropdown de resultados --}}
                             <div 
-                                x-show="mostrarCategorias && categoriasResultados.length > 0" 
+                                x-show="mostrarCategorias && categoriaSearch.length > 0" 
                                 class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
                                 <template x-for="cat in categoriasResultados" :key="cat.id">
                                     <div 
@@ -83,14 +83,22 @@
                                         <div class="text-xs text-gray-600" x-text="cat.descripcion || ''"></div>
                                     </div>
                                 </template>
+                                <div 
+                                    @click="marcarNuevaCategoria()"
+                                    class="px-4 py-2 hover:bg-indigo-50 cursor-pointer text-indigo-700 font-medium flex items-center gap-2 border-t border-gray-200">
+                                    <span>+ Crear "<span x-text="categoriaSearch"></span>"</span>
+                                </div>
                             </div>
 
                             {{-- Mostrar selección actual --}}
-                            <div x-show="categoriaSeleccionada" class="mt-2 p-2 bg-green-50 border border-green-200 rounded">
-                                <p class="text-sm text-green-700">
-                                    ✓ Seleccionado: <span x-text="categoriaSeleccionada"></span>
+                            <div x-show="categoriaSeleccionada" class="mt-2 p-2 border rounded"
+                                 :class="categoriaEsNueva ? 'bg-indigo-50 border-indigo-200' : 'bg-green-50 border-green-200'">
+                                <p class="text-sm" :class="categoriaEsNueva ? 'text-indigo-700' : 'text-green-700'">
+                                    <span x-text="categoriaEsNueva ? '+ Nueva: ' : '✓ Seleccionado: '"></span>
+                                    <span x-text="categoriaSeleccionada"></span>
                                 </p>
                             </div>
+                            <p x-show="errorCategoria" x-text="errorCategoria" class="lc-help text-red-600 mt-1"></p>
                         </div>
                         @error('categoria_insumo_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
@@ -111,7 +119,7 @@
                             
                             {{-- Dropdown de resultados --}}
                             <div 
-                                x-show="mostrarUnidades && unidadesResultados.length > 0" 
+                                x-show="mostrarUnidades && unidadSearch.length > 0" 
                                 class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
                                 <template x-for="uni in unidadesResultados" :key="uni.id">
                                     <div 
@@ -120,14 +128,22 @@
                                         <div class="font-medium" x-text="uni.nombre_completo"></div>
                                     </div>
                                 </template>
+                                <div 
+                                    @click="marcarNuevaUnidad()"
+                                    class="px-4 py-2 hover:bg-indigo-50 cursor-pointer text-indigo-700 font-medium flex items-center gap-2 border-t border-gray-200">
+                                    <span>+ Crear "<span x-text="unidadSearch"></span>"</span>
+                                </div>
                             </div>
 
                             {{-- Mostrar selección actual --}}
-                            <div x-show="unidadSeleccionada" class="mt-2 p-2 bg-green-50 border border-green-200 rounded">
-                                <p class="text-sm text-green-700">
-                                    ✓ Seleccionado: <span x-text="unidadSeleccionada"></span>
+                            <div x-show="unidadSeleccionada" class="mt-2 p-2 border rounded"
+                                 :class="unidadEsNueva ? 'bg-indigo-50 border-indigo-200' : 'bg-green-50 border-green-200'">
+                                <p class="text-sm" :class="unidadEsNueva ? 'text-indigo-700' : 'text-green-700'">
+                                    <span x-text="unidadEsNueva ? '+ Nueva: ' : '✓ Seleccionado: '"></span>
+                                    <span x-text="unidadSeleccionada"></span>
                                 </p>
                             </div>
+                            <p x-show="errorUnidad" x-text="errorUnidad" class="lc-help text-red-600 mt-1"></p>
                         </div>
                         @error('unidad_medida_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
@@ -160,12 +176,7 @@
                         </select>
                         @error('proveedor_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
-                    <div class="lc-field">
-                        <label class="lc-label">Código del proveedor</label>
-                        <input type="text" name="codigo_proveedor_insumo" value="{{ old('codigo_proveedor_insumo') }}"
-                               placeholder="Ej: TMT-TELA-01" maxlength="50" class="lc-input">
-                        @error('codigo_proveedor_insumo')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
-                    </div>
+                    
                 </div>
             </div>
         </section>
@@ -217,7 +228,7 @@
                         <div class="relative">
                             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400 text-sm">$</span>
                             <input type="number" name="precio_unitario" value="{{ old('precio_unitario') }}"
-                                   step="0.0001" min="0" placeholder="0.00" class="lc-input pl-7">
+                                   step="any" min="0" placeholder="0.00" class="lc-input pl-7">
                         </div>
                         @error('precio_unitario')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
@@ -226,7 +237,7 @@
                         <div class="relative">
                             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400 text-sm">$</span>
                             <input type="number" name="precio_costo" value="{{ old('precio_costo') }}"
-                                   step="0.0001" min="0" placeholder="0.00" class="lc-input pl-7">
+                                   step="any" min="0" placeholder="0.00" class="lc-input pl-7">
                         </div>
                         @error('precio_costo')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
@@ -239,11 +250,11 @@
             <div class="lc-card-header">
                 <div>
                     <h2 class="lc-section-title">Logística y almacén</h2>
-                    <p class="lc-section-subtitle">Ubicación, unidad de compra y cantidad mínima de orden.</p>
+                    <p class="lc-section-subtitle">Ubicación y cantidad mínima de orden.</p>
                 </div>
             </div>
             <div class="lc-card-body space-y-4">
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div class="lc-field">
                         <label class="lc-label">Ubicación en almacén</label>
                         <select name="ubicacion_almacen_id" class="lc-select">
@@ -255,18 +266,6 @@
                             @endforeach
                         </select>
                         @error('ubicacion_almacen_id')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                    <div class="lc-field">
-                        <label class="lc-label">Unidad de compra</label>
-                        <select name="unidad_compra" class="lc-select">
-                            <option value="">Selecciona</option>
-                            @foreach($unidades as $unidad)
-                                <option value="{{ $unidad->abreviatura }}" @selected(old('unidad_compra', 'pz') == $unidad->abreviatura)>
-                                    {{ $unidad->nombre }} ({{ $unidad->abreviatura }})
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('unidad_compra')<p class="lc-help text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div class="lc-field">
                         <label class="lc-label">Cantidad mínima de orden</label>
@@ -327,77 +326,160 @@
 </div>
 
 <script>
-    function categoriaUnidadForm() {
+    function insumoForm() {
         return {
-            // Categorías
+            submitting: false,
+
+            // --- Categoría ---
             categoriaSearch: '',
             categoriasResultados: [],
             categoria_insumo_id: '',
             categoriaSeleccionada: '',
+            categoriaEsNueva: false,
+            errorCategoria: '',
             mostrarCategorias: false,
 
-            // Unidades
+            // --- Unidad de medida ---
             unidadSearch: '',
             unidadesResultados: [],
             unidad_medida_id: '',
             unidadSeleccionada: '',
+            unidadEsNueva: false,
+            errorUnidad: '',
             mostrarUnidades: false,
 
-            // Búsqueda de categorías
             async buscarCategorias() {
-                if (this.categoriaSearch.length < 1) {
-                    this.categoriasResultados = [];
-                    return;
-                }
-
+                this.categoria_insumo_id = '';
+                this.categoriaSeleccionada = '';
+                this.categoriaEsNueva = false;
+                if (this.categoriaSearch.length < 1) { this.categoriasResultados = []; return; }
                 try {
-                    const response = await fetch(
-                        `/api/catalogs/categorias/buscar?q=${encodeURIComponent(this.categoriaSearch)}`
-                    );
-                    const data = await response.json();
+                    const res = await fetch(`/api/catalogs/categorias/buscar?q=${encodeURIComponent(this.categoriaSearch)}`);
+                    const data = await res.json();
                     this.categoriasResultados = data.data || [];
-                } catch (error) {
-                    console.error('Error buscando categorías:', error);
-                    this.categoriasResultados = [];
-                }
+                } catch (e) { this.categoriasResultados = []; }
             },
 
-            // Búsqueda de unidades
             async buscarUnidades() {
-                if (this.unidadSearch.length < 1) {
-                    this.unidadesResultados = [];
-                    return;
-                }
-
+                this.unidad_medida_id = '';
+                this.unidadSeleccionada = '';
+                this.unidadEsNueva = false;
+                if (this.unidadSearch.length < 1) { this.unidadesResultados = []; return; }
                 try {
-                    const response = await fetch(
-                        `/api/catalogs/unidades/buscar?q=${encodeURIComponent(this.unidadSearch)}`
-                    );
-                    const data = await response.json();
+                    const res = await fetch(`/api/catalogs/unidades/buscar?q=${encodeURIComponent(this.unidadSearch)}`);
+                    const data = await res.json();
                     this.unidadesResultados = data.data || [];
-                } catch (error) {
-                    console.error('Error buscando unidades:', error);
-                    this.unidadesResultados = [];
-                }
+                } catch (e) { this.unidadesResultados = []; }
             },
 
-            // Seleccionar categoría
             seleccionarCategoria(categoria) {
                 this.categoria_insumo_id = categoria.id;
                 this.categoriaSeleccionada = categoria.nombre;
                 this.categoriaSearch = categoria.nombre;
+                this.categoriaEsNueva = false;
+                this.errorCategoria = '';
                 this.mostrarCategorias = false;
                 this.categoriasResultados = [];
             },
 
-            // Seleccionar unidad
+            marcarNuevaCategoria() {
+                this.categoriaSeleccionada = this.categoriaSearch;
+                this.categoriaEsNueva = true;
+                this.categoria_insumo_id = '';
+                this.errorCategoria = '';
+                this.mostrarCategorias = false;
+                this.categoriasResultados = [];
+            },
+
             seleccionarUnidad(unidad) {
                 this.unidad_medida_id = unidad.id;
                 this.unidadSeleccionada = unidad.nombre_completo;
                 this.unidadSearch = unidad.nombre_completo;
+                this.unidadEsNueva = false;
+                this.errorUnidad = '';
                 this.mostrarUnidades = false;
                 this.unidadesResultados = [];
-            }
+            },
+
+            marcarNuevaUnidad() {
+                this.unidadSeleccionada = this.unidadSearch;
+                this.unidadEsNueva = true;
+                this.unidad_medida_id = '';
+                this.errorUnidad = '';
+                this.mostrarUnidades = false;
+                this.unidadesResultados = [];
+            },
+
+            // Llama a /normalizar: encuentra existente o crea nueva categoría
+            async resolverCategoria(csrfToken) {
+                if (this.categoria_insumo_id) return true;
+                const texto = (this.categoriaSearch || '').trim();
+                if (!texto) { this.errorCategoria = 'Debes ingresar una categoría.'; return false; }
+                try {
+                    const res = await fetch('/api/catalogs/categorias/normalizar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                        body: JSON.stringify({ nombre: texto }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this.categoria_insumo_id = data.data.id;
+                        this.categoriaSeleccionada = data.data.nombre;
+                        this.categoriaEsNueva = false;
+                        this.errorCategoria = '';
+                        return true;
+                    }
+                    this.errorCategoria = data.message || 'No se pudo guardar la categoría.';
+                    return false;
+                } catch (e) {
+                    this.errorCategoria = 'Error de conexión al guardar la categoría.';
+                    return false;
+                }
+            },
+
+            // Llama a /normalizar: encuentra existente o crea nueva unidad de medida
+            async resolverUnidad(csrfToken) {
+                if (this.unidad_medida_id) return true;
+                const texto = (this.unidadSearch || '').trim();
+                if (!texto) { this.errorUnidad = 'Debes ingresar una unidad de medida.'; return false; }
+                const abreviatura = texto.length <= 6 && !/\s/.test(texto) ? texto : null;
+                try {
+                    const res = await fetch('/api/catalogs/unidades/normalizar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                        body: JSON.stringify({ nombre: texto, abreviatura }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this.unidad_medida_id = data.data.id;
+                        const ab = data.data.abreviatura;
+                        this.unidadSeleccionada = ab ? `${data.data.nombre} (${ab})` : data.data.nombre;
+                        this.unidadEsNueva = false;
+                        this.errorUnidad = '';
+                        return true;
+                    }
+                    this.errorUnidad = data.message || 'No se pudo guardar la unidad de medida.';
+                    return false;
+                } catch (e) {
+                    this.errorUnidad = 'Error de conexión al guardar la unidad de medida.';
+                    return false;
+                }
+            },
+
+            // Intercepta el submit: resuelve/crea categoría y unidad antes de enviar
+            async resolverYEnviar(form) {
+                this.submitting = true;
+                const csrfToken = form.querySelector('input[name="_token"]').value;
+                const [okCat, okUni] = await Promise.all([
+                    this.resolverCategoria(csrfToken),
+                    this.resolverUnidad(csrfToken),
+                ]);
+                if (!okCat || !okUni) {
+                    this.submitting = false;
+                    return;
+                }
+                form.submit();
+            },
         }
     }
 </script>

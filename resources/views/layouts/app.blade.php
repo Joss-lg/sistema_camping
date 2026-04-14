@@ -113,14 +113,6 @@
                     <span>Proveedores</span>
                 </a>
                 @endif
-                                @if ($canAccess('Insumos'))
-                <a href="{{ route('insumos.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('insumos.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m10.5 6 1.5-1.5m0 0L13.5 6M12 4.5V9m4.5 6 1.5 1.5m0 0L19.5 15M18 16.5V12M6 12H3m3 0 1.5-1.5M6 12l1.5 1.5m8.379-8.379 1.06-1.06a2.121 2.121 0 1 1 3 3l-1.06 1.06m-2.12-2.12L7.5 15.27V18h2.73l9.258-9.258m-2.12-2.121 2.12 2.12" />
-                    </svg>
-                    <span>Insumos</span>
-                </a>
-                @endif
                 @if ($canAccess('Insumos'))
                 <a href="{{ route('almacenes.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('almacenes.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
@@ -129,6 +121,15 @@
                     <span>Almacenes</span>
                 </a>
                 @endif
+                @if ($canAccess('Insumos'))
+                <a href="{{ route('insumos.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('insumos.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m10.5 6 1.5-1.5m0 0L13.5 6M12 4.5V9m4.5 6 1.5 1.5m0 0L19.5 15M18 16.5V12M6 12H3m3 0 1.5-1.5M6 12l1.5 1.5m8.379-8.379 1.06-1.06a2.121 2.121 0 1 1 3 3l-1.06 1.06m-2.12-2.12L7.5 15.27V18h2.73l9.258-9.258m-2.12-2.121 2.12 2.12" />
+                    </svg>
+                    <span>Insumos</span>
+                </a>
+                @endif
+                
                 @if ($canAccess('Compras'))
                 <a href="{{ route('ordenes-compra.index') }}" class="group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors {{ request()->routeIs('ordenes-compra.*') ? 'bg-emerald-900/30 text-emerald-400' : '' }}">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5 shrink-0">

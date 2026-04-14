@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Services\CatalogNormalizationService;
+use App\Services\PermisoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -64,8 +65,11 @@ class CatalogNormalizationController
         $categoria = $service->normalizarCategoria($nombre);
 
         if (!$categoria) {
-            // Si tiene permiso, crea nueva
-            if ($user && $user->can('create', 'App\Models\CategoriaInsumo')) {
+            $puedeCrear = $user && (
+                PermisoService::isSuperAdmin($user) ||
+                $user->canCustom('Insumos', 'crear')
+            );
+            if ($puedeCrear) {
                 $categoria = $service->crearOEncontrarCategoria($nombre);
             } else {
                 return response()->json([
@@ -104,8 +108,11 @@ class CatalogNormalizationController
         $unidad = $service->normalizarUnidad($nombre);
 
         if (!$unidad) {
-            // Si tiene permiso, crea nueva
-            if ($user && $user->can('create', 'App\Models\UnidadMedida')) {
+            $puedeCrear = $user && (
+                PermisoService::isSuperAdmin($user) ||
+                $user->canCustom('Insumos', 'crear')
+            );
+            if ($puedeCrear) {
                 $unidad = $service->crearOEncontrarUnidad($nombre, $abreviatura);
             } else {
                 return response()->json([

@@ -15,8 +15,17 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            // Bootstrap mínimo para entorno sin datos demo
+            // Mantener activo solo el seeder de usuarios.
             UserSeeder::class,
+
+            // Seeders comentados para evitar carga de datos demo:
+            // SecuritySeeder::class,
+            // CatalogosSeeder::class,
+            // ProveedorSeeder::class,
+            // InsumoSeeder::class,
+            // ProduccionSeeder::class,
+            // LogisticaSeeder::class,
+            // TrazabilidadSeeder::class,
         ]);
     }
 }
