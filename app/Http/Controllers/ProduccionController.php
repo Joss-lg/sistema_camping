@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProduccionController extends Controller
@@ -218,6 +219,7 @@ class ProduccionController extends Controller
         }
 
         $material = Insumo::query()->findOrFail((int) $data['material_id']);
+        $this->asegurarInsumoActivoParaProduccion($material);
 
         // Si existe desfase stock_global vs stock_en_lotes, crea un lote de ajuste para no bloquear consumo válido.
         $this->regularizarDesfaseLotes(collect([$material]));
@@ -865,8 +867,12 @@ class ProduccionController extends Controller
             $insumo = Insumo::query()->find((int) $materialId);
 
             if (! $insumo) {
-                continue;
+                throw ValidationException::withMessages([
+                    'material_id' => 'Uno de los insumos seleccionados no existe o ya no está disponible.',
+                ]);
             }
+
+            $this->asegurarInsumoActivoParaProduccion($insumo);
 
             $cantidadBase = (float) ($data['cantidad_base'][$i] ?? 0);
             $isActivo = (string) ($data['activo'][$i] ?? '1') === '1';
@@ -913,6 +919,15 @@ class ProduccionController extends Controller
         $ordenBase->update([
             'estado' => $activoGeneral ? OrdenProduccion::ESTADO_PENDIENTE : OrdenProduccion::ESTADO_CANCELADA,
         ]);
+    }
+
+    private function asegurarInsumoActivoParaProduccion(Insumo $insumo): void
+    {
+        if (! $insumo->activo || mb_strtolower((string) $insumo->estado) === 'inactivo') {
+            throw ValidationException::withMessages([
+                'material_id' => sprintf('El insumo "%s" está inactivo y no puede seleccionarse para producción.', (string) $insumo->nombre),
+            ]);
+        }
     }
 
     private function resolverTipoProductoParaBom(string $nombreProducto): ?TipoProducto

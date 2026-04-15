@@ -15,9 +15,15 @@ use Illuminate\View\View;
 
 class PermisoController extends Controller
 {
+    private function ensureRolesCatalog(): void
+    {
+        PermisoService::ensureCoreRoles();
+    }
+
     public function index(Request $request): View
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos'), 403);
+        $this->ensureRolesCatalog();
 
         $rolFiltro = strtoupper((string) $request->query('rol', '')) ?: null;
 
@@ -95,13 +101,14 @@ class PermisoController extends Controller
     public function store(Request $request): RedirectResponse
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
+        $this->ensureRolesCatalog();
 
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6', 'confirmed'],
             'rol' => ['required', 'string', 'max:100'],
-            'proveedor_id' => ['nullable', 'exists:proveedores,id'],
+            'proveedor_id' => ['nullable', 'required_if:rol,PROVEEDOR,proveedor', 'exists:proveedores,id'],
             'modulos' => ['nullable', 'array'],
             'modulos.*' => ['string', 'max:100'],
             'puede_editar' => ['nullable', 'array'],
@@ -135,6 +142,7 @@ class PermisoController extends Controller
     public function toggleEstado(int $id): RedirectResponse
     {
         abort_unless(PermisoService::canAccessModule(request()->user(), 'Permisos', 'editar'), 403);
+        $this->ensureRolesCatalog();
 
         $user = User::query()->findOrFail($id);
         $user->activo = ! $user->activo;
@@ -146,6 +154,7 @@ class PermisoController extends Controller
     public function edit(Request $request, int $id): View
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
+        $this->ensureRolesCatalog();
 
         $usuario = User::query()->with('role')->findOrFail($id);
 
@@ -205,6 +214,7 @@ class PermisoController extends Controller
     public function update(Request $request, int $id): RedirectResponse
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
+        $this->ensureRolesCatalog();
 
         $user = User::query()->findOrFail($id);
 
@@ -212,7 +222,7 @@ class PermisoController extends Controller
             'nombre' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'rol' => ['required', 'string', 'max:100'],
-            'proveedor_id' => ['nullable', 'exists:proveedores,id'],
+            'proveedor_id' => ['nullable', 'required_if:rol,PROVEEDOR,proveedor', 'exists:proveedores,id'],
             'password' => ['nullable', 'string', 'min:6', 'confirmed'],
             'modulos' => ['nullable', 'array'],
             'modulos.*' => ['string', 'max:100'],
@@ -251,6 +261,7 @@ class PermisoController extends Controller
     public function destroy(Request $request, int $id)
     {
         abort_unless(PermisoService::canAccessModule($request->user(), 'Permisos', 'editar'), 403);
+        $this->ensureRolesCatalog();
 
         $user = User::query()->findOrFail($id);
 

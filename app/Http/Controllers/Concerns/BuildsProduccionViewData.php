@@ -33,7 +33,7 @@ trait BuildsProduccionViewData
 
         $rol = PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre ?: ''));
 
-        return in_array($rol, ['SUPER_ADMIN', 'SUPERVISOR_ALMACEN', 'ALMACEN', 'ADMIN'], true)
+        return in_array($rol, ['ADMINISTRADOR', 'ENCARGADO'], true)
             || $user->canCustom('Produccion', 'crear');
     }
 

@@ -11,33 +11,27 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             [
-                'nombre' => 'Super Administrador',
-                'slug' => 'super_admin',
-                'descripcion' => 'Acceso total al sistema y configuraciones avanzadas',
+                'nombre' => 'Administrador',
+                'slug' => 'administrador',
+                'descripcion' => 'Acceso total al sistema LogiCamp y gestión de usuarios',
                 'nivel_acceso' => 100,
             ],
             [
-                'nombre' => 'Gerente de Producción',
-                'slug' => 'gerente_produccion',
-                'descripcion' => 'Gestión integral de órdenes y trazabilidad de producción',
-                'nivel_acceso' => 80,
+                'nombre' => 'Encargado',
+                'slug' => 'encargado',
+                'descripcion' => 'Supervisión de operaciones diarias: almacén, compras y producción',
+                'nivel_acceso' => 70,
             ],
             [
-                'nombre' => 'Supervisor de Almacén',
-                'slug' => 'supervisor_almacen',
-                'descripcion' => 'Control operativo de inventario, recepciones y salidas',
-                'nivel_acceso' => 60,
-            ],
-            [
-                'nombre' => 'Operador',
-                'slug' => 'operador',
-                'descripcion' => 'Ejecución de tareas operativas en producción y almacén',
+                'nombre' => 'Trabajador',
+                'slug' => 'trabajador',
+                'descripcion' => 'Ejecución de tareas operativas en planta y producción',
                 'nivel_acceso' => 40,
             ],
             [
                 'nombre' => 'Proveedor',
                 'slug' => 'proveedor',
-                'descripcion' => 'Acceso restringido únicamente a la consulta de sus entregas',
+                'descripcion' => 'Acceso restringido a la consulta de sus entregas',
                 'nivel_acceso' => 20,
             ],
         ];

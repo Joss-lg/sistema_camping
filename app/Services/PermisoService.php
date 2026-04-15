@@ -5,9 +5,118 @@ namespace App\Services;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class PermisoService
 {
+    /**
+     * @return array<string, array{nombre: string, slug: string, descripcion: string, nivel_acceso: int}>
+     */
+    public static function coreRolesCatalog(): array
+    {
+        return [
+            'ADMINISTRADOR' => [
+                'nombre' => 'Administrador',
+                'slug' => 'administrador',
+                'descripcion' => 'Acceso total al sistema LogiCamp y gestión de usuarios',
+                'nivel_acceso' => 100,
+            ],
+            'ENCARGADO' => [
+                'nombre' => 'Encargado',
+                'slug' => 'encargado',
+                'descripcion' => 'Supervisión de operaciones diarias: almacén, compras y producción',
+                'nivel_acceso' => 70,
+            ],
+            'TRABAJADOR' => [
+                'nombre' => 'Trabajador',
+                'slug' => 'trabajador',
+                'descripcion' => 'Ejecución de tareas operativas en planta y producción',
+                'nivel_acceso' => 40,
+            ],
+            'PROVEEDOR' => [
+                'nombre' => 'Proveedor',
+                'slug' => 'proveedor',
+                'descripcion' => 'Acceso restringido a la consulta de sus entregas',
+                'nivel_acceso' => 20,
+            ],
+        ];
+    }
+
+    /**
+     * Sincroniza los 4 roles oficiales del sistema sin depender de seeders.
+     * También migra usuarios con roles legacy a los nuevos roles.
+     */
+    public static function ensureCoreRoles(): void
+    {
+        DB::transaction(function (): void {
+            $catalog = self::coreRolesCatalog();
+            $byKey = [];
+
+            foreach ($catalog as $roleKey => $payload) {
+                $role = Role::query()->updateOrCreate(
+                    ['slug' => $payload['slug']],
+                    $payload
+                );
+
+                $byKey[$roleKey] = $role;
+
+                $roleYaTienePermisos = Permission::query()
+                    ->where('role_id', $role->id)
+                    ->exists();
+
+                if (! $roleYaTienePermisos) {
+                    self::syncRolePermissions($role);
+                }
+            }
+
+            // Migración de slugs legacy al nuevo catálogo.
+            $legacyToNew = [
+                'super_admin' => 'ADMINISTRADOR',
+                'gerente_produccion' => 'ENCARGADO',
+                'supervisor_almacen' => 'ENCARGADO',
+                'operador' => 'TRABAJADOR',
+                'admin' => 'ADMINISTRADOR',
+                'almacen' => 'ENCARGADO',
+            ];
+
+            foreach ($legacyToNew as $legacySlug => $targetKey) {
+                $legacyRole = Role::query()->where('slug', $legacySlug)->first();
+
+                if (! $legacyRole || ! isset($byKey[$targetKey])) {
+                    continue;
+                }
+
+                User::query()
+                    ->where('role_id', $legacyRole->id)
+                    ->update(['role_id' => $byKey[$targetKey]->id]);
+
+                Permission::query()->where('role_id', $legacyRole->id)->delete();
+                $legacyRole->delete();
+            }
+
+            // Limpieza defensiva: elimina roles fuera del catálogo oficial.
+            $allowedSlugs = array_map(
+                fn (array $role): string => (string) $role['slug'],
+                array_values($catalog)
+            );
+
+            $rolesFueraCatalogo = Role::query()
+                ->whereNotIn('slug', $allowedSlugs)
+                ->get(['id']);
+
+            foreach ($rolesFueraCatalogo as $roleExtra) {
+                $usuariosConRol = User::query()->where('role_id', $roleExtra->id)->exists();
+
+                if ($usuariosConRol) {
+                    continue;
+                }
+
+                Permission::query()->where('role_id', $roleExtra->id)->delete();
+                Role::query()->whereKey($roleExtra->id)->delete();
+            }
+        });
+    }
+
     /**
      * @return array<int, string>
      */
@@ -35,33 +144,21 @@ class PermisoService
         $all = self::modulosDisponibles();
 
         return [
-            'SUPER_ADMIN' => [
+            'ADMINISTRADOR' => [
                 'modulos' => $all,
                 'puede_editar' => $all,
             ],
-            'GERENTE_PRODUCCION' => [
-                'modulos' => ['Dashboard', 'Produccion', 'Terminados', 'Trazabilidad', 'Reportes', 'Entregas'],
-                'puede_editar' => ['Produccion', 'Terminados', 'Trazabilidad', 'Entregas'],
+            'ENCARGADO' => [
+                'modulos' => ['Dashboard', 'Insumos', 'Compras', 'Produccion', 'Entregas', 'Terminados', 'Trazabilidad', 'Proveedores', 'Reportes'],
+                'puede_editar' => ['Insumos', 'Compras', 'Produccion', 'Entregas', 'Terminados'],
             ],
-            'SUPERVISOR_ALMACEN' => [
-                'modulos' => ['Dashboard', 'Insumos', 'Compras', 'Entregas', 'Terminados', 'Trazabilidad', 'Reportes', 'Proveedores'],
-                'puede_editar' => ['Insumos', 'Compras', 'Entregas', 'Terminados', 'Proveedores'],
-            ],
-            'OPERADOR' => [
-                'modulos' => ['Dashboard', 'Produccion', 'Trazabilidad', 'Terminados'],
+            'TRABAJADOR' => [
+                'modulos' => ['Dashboard', 'Insumos', 'Compras', 'Produccion', 'Entregas', 'Terminados', 'Trazabilidad'],
                 'puede_editar' => ['Produccion'],
             ],
             'PROVEEDOR' => [
                 'modulos' => ['Entregas'],
                 'puede_editar' => [],
-            ],
-            'ADMIN' => [
-                'modulos' => $all,
-                'puede_editar' => $all,
-            ],
-            'ALMACEN' => [
-                'modulos' => ['Dashboard', 'Insumos', 'Compras', 'Entregas', 'Terminados', 'Trazabilidad', 'Reportes', 'Proveedores'],
-                'puede_editar' => ['Insumos', 'Compras', 'Entregas', 'Terminados', 'Proveedores'],
             ],
         ];
     }
@@ -73,10 +170,9 @@ class PermisoService
         $normalized = str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $normalized);
 
         return match ($normalized) {
-            'super_admin', 'super_administrador', 'administrador', 'admin' => 'SUPER_ADMIN',
-            'gerente_produccion', 'gerente_de_produccion' => 'GERENTE_PRODUCCION',
-            'supervisor_almacen', 'supervisor_de_almacen', 'almacen' => 'SUPERVISOR_ALMACEN',
-            'operador' => 'OPERADOR',
+            'administrador', 'admin', 'super_admin', 'super_administrador' => 'ADMINISTRADOR',
+            'encargado' => 'ENCARGADO',
+            'trabajador', 'operador' => 'TRABAJADOR',
             'proveedor' => 'PROVEEDOR',
             default => strtoupper($normalized),
         };
@@ -90,7 +186,7 @@ class PermisoService
 
         $roleKey = self::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre));
 
-        return $roleKey === 'SUPER_ADMIN';
+        return $roleKey === 'ADMINISTRADOR';
     }
 
     /**

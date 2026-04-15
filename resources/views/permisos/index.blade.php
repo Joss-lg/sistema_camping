@@ -63,8 +63,11 @@
 
                 {{-- Empresa vinculada: visible solo si el rol es PROVEEDOR --}}
                 <div class="flex flex-col gap-1.5 md:col-span-2" x-show="rolSeleccionado === 'PROVEEDOR'" x-cloak>
-                    <label for="proveedor_id" class="text-sm font-semibold text-slate-700">Empresa Vinculada</label>
-                    <select id="proveedor_id" name="proveedor_id"
+                    <label for="proveedor_id" class="text-sm font-semibold text-slate-700">Empresa Vinculada <span class="text-red-500">*</span></label>
+                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                        Obligatorio: selecciona la empresa que se va a ligar al usuario proveedor.
+                    </p>
+                    <select id="proveedor_id" name="proveedor_id" :required="rolSeleccionado === 'PROVEEDOR'"
                         class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                         <option value="">Sin vincular</option>
                         @foreach ($proveedores as $proveedor)
@@ -179,16 +182,12 @@
                     .replace(/[úùü]/g, 'u')
                     .replace(/ñ/g, 'n');
                 const mapa = {
-                    'super_admin': 'SUPER_ADMIN',
-                    'super_administrador': 'SUPER_ADMIN',
-                    'administrador': 'SUPER_ADMIN',
-                    'admin': 'SUPER_ADMIN',
-                    'gerente_produccion': 'GERENTE_PRODUCCION',
-                    'gerente_de_produccion': 'GERENTE_PRODUCCION',
-                    'supervisor_almacen': 'SUPERVISOR_ALMACEN',
-                    'supervisor_de_almacen': 'SUPERVISOR_ALMACEN',
-                    'almacen': 'SUPERVISOR_ALMACEN',
-                    'operador': 'OPERADOR',
+                    'administrador': 'ADMINISTRADOR',
+                    'admin': 'ADMINISTRADOR',
+                    'super_admin': 'ADMINISTRADOR',
+                    'encargado': 'ENCARGADO',
+                    'trabajador': 'TRABAJADOR',
+                    'operador': 'TRABAJADOR',
                     'proveedor': 'PROVEEDOR',
                 };
                 return mapa[r] ?? r.toUpperCase();
@@ -256,7 +255,7 @@
                                         Editar
                                     </a>
 
-                                    @if ($registro['rol'] !== 'ADMIN')
+                                    @if ($registro['rol'] !== 'ADMINISTRADOR')
                                         <form method="POST" action="{{ route('permisos.usuarios.destroy', ['id' => $registro['id']]) }}" onsubmit="return confirm('¿Eliminar este usuario? No se puede deshacer.')">
                                             @csrf
                                             @method('DELETE')

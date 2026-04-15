@@ -76,10 +76,13 @@
                 <tbody>
                     @forelse($insumos as $insumo)
                         @php
-                            $estado = (string) ($insumo->estado ?? '-');
+                            $estado = ! $insumo->activo
+                                ? 'Inactivo'
+                                : (string) ($insumo->estado ?? '-');
                             $badge = match ($estado) {
                                 'Activo' => 'lc-badge lc-badge-success',
                                 'Agotado' => 'lc-badge border-red-200 bg-red-50 text-red-700',
+                                'Inactivo' => 'lc-badge lc-badge-neutral',
                                 default => 'lc-badge lc-badge-neutral',
                             };
                             $stockEntrante = (float) ($insumo->stock_entrante_confirmado ?? 0);

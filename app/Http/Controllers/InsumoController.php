@@ -80,7 +80,8 @@ class InsumoController extends Controller
 		DB::beginTransaction();
 
 		try {
-			Insumo::create($request->validated());
+			$payload = $this->normalizarPayload($request->validated());
+			Insumo::create($payload);
 
 			DB::commit();
 
@@ -127,7 +128,8 @@ class InsumoController extends Controller
 		DB::beginTransaction();
 
 		try {
-			$insumo->update($request->validated());
+			$payload = $this->normalizarPayload($request->validated());
+			$insumo->update($payload);
 
 			DB::commit();
 
@@ -171,6 +173,26 @@ class InsumoController extends Controller
 		$this->sincronizarNotificacionesStockBajo($insumos->getCollection(), 'controller.insumos.bajo_stock');
 
 		return view('insumos.bajo_stock', compact('insumos'));
+	}
+
+	/**
+	 * @param array<string, mixed> $data
+	 * @return array<string, mixed>
+	 */
+	private function normalizarPayload(array $data): array
+	{
+		$activo = filter_var($data['activo'] ?? true, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+		$data['activo'] = $activo ?? (bool) ($data['activo'] ?? true);
+
+		$estado = trim((string) ($data['estado'] ?? ''));
+
+		if (! $data['activo']) {
+			$data['estado'] = 'Inactivo';
+		} elseif ($estado === '' || strcasecmp($estado, 'Inactivo') === 0) {
+			$data['estado'] = 'Activo';
+		}
+
+		return $data;
 	}
 
 	/**

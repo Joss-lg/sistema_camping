@@ -141,8 +141,7 @@ class ReservaInsumosService
             return;
         }
 
-        $roleId = PermisoService::resolveRoleByInput('SUPER_ADMIN')?->id
-            ?? PermisoService::resolveRoleByInput('ADMIN')?->id
+        $roleId = PermisoService::resolveRoleByInput('ADMINISTRADOR')?->id
             ?? Role::query()->orderBy('id')->value('id');
 
         if (! $roleId) {

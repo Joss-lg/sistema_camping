@@ -183,6 +183,28 @@ class ProduccionFlowTest extends TestCase
         ]);
     }
 
+    public function test_inactive_insumo_cannot_be_selected_for_production(): void
+    {
+        $fixtures = $this->crearFixturesProduccion();
+
+        $fixtures['insumo']->update([
+            'activo' => false,
+            'estado' => 'Inactivo',
+        ]);
+
+        $this->actingAs($fixtures['user'])
+            ->from(route('produccion.bom.index'))
+            ->post(route('produccion.bom.store'), [
+                'producto_nombre' => $fixtures['tipoProducto']->nombre,
+                'material_id' => [$fixtures['insumo']->id],
+                'cantidad_base' => [1],
+                'activo' => ['1'],
+                'activo_general' => '1',
+            ])
+            ->assertRedirect(route('produccion.bom.index'))
+            ->assertSessionHasErrors('material_id');
+    }
+
     /**
      * @return array{user: User, tipoProducto: TipoProducto, insumo: Insumo, lote: LoteInsumo}
      */

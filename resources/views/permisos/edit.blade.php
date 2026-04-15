@@ -86,8 +86,11 @@
 
                 {{-- Empresa vinculada: visible solo si el rol es PROVEEDOR --}}
                 <div class="flex flex-col gap-1.5" x-show="rolSeleccionado === '{{ $proveedorRolKey }}'" x-cloak>
-                    <label for="proveedor_id" class="text-sm font-semibold text-slate-700">Empresa Vinculada</label>
-                    <select id="proveedor_id" name="proveedor_id"
+                    <label for="proveedor_id" class="text-sm font-semibold text-slate-700">Empresa Vinculada <span class="text-red-500">*</span></label>
+                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                        Obligatorio: selecciona la empresa que se va a ligar al usuario proveedor.
+                    </p>
+                    <select id="proveedor_id" name="proveedor_id" :required="rolSeleccionado === '{{ $proveedorRolKey }}'"
                         class="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                         <option value="">Sin vincular</option>
                         @foreach ($proveedores as $proveedor)
