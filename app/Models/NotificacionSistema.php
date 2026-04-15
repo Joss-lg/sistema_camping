@@ -81,6 +81,22 @@ class NotificacionSistema extends Model
         return $query->where('modulo', $modulo);
     }
 
+    public function scopeParaUsuario($query, User $user)
+    {
+        return $query->where(function ($innerQuery) use ($user): void {
+            $innerQuery->where('user_id', $user->id);
+
+            if ($user->role_id !== null) {
+                $innerQuery->orWhere('role_id', $user->role_id);
+            }
+        });
+    }
+
+    public function scopeNoArchivadas($query)
+    {
+        return $query->where('estado', '!=', 'Archivada');
+    }
+
     public function marcarLeida(): void
     {
         $this->estado = 'Leida';

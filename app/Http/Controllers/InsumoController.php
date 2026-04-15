@@ -9,8 +9,10 @@ use App\Models\Insumo;
 use App\Models\Proveedor;
 use App\Models\UbicacionAlmacen;
 use App\Models\UnidadMedida;
+use App\Services\StockBajoInsumosNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -52,6 +54,7 @@ class InsumoController extends Controller
 		}
 
 		$insumos = $query->paginate(15)->withQueryString();
+		$this->sincronizarNotificacionesStockBajo($insumos->getCollection(), 'controller.insumos.index');
 		$categorias = CategoriaInsumo::query()->orderBy('nombre')->get();
 		$proveedores = Proveedor::query()->orderBy('razon_social')->get();
 
@@ -165,6 +168,33 @@ class InsumoController extends Controller
 			->orderByRaw('(stock_actual - stock_minimo) asc')
 			->paginate(15);
 
+		$this->sincronizarNotificacionesStockBajo($insumos->getCollection(), 'controller.insumos.bajo_stock');
+
 		return view('insumos.bajo_stock', compact('insumos'));
+	}
+
+	/**
+	 * @param Collection<int, Insumo> $insumos
+	 */
+	private function sincronizarNotificacionesStockBajo(Collection $insumos, string $origen): void
+	{
+		if ($insumos->isEmpty()) {
+			return;
+		}
+
+		/** @var StockBajoInsumosNotifier $notifier */
+		$notifier = app(StockBajoInsumosNotifier::class);
+
+		foreach ($insumos as $insumo) {
+			if (! $insumo instanceof Insumo) {
+				continue;
+			}
+
+			if (! $insumo->activo || (float) $insumo->stock_actual > (float) $insumo->stock_minimo) {
+				continue;
+			}
+
+			$notifier->notificar($insumo, $origen);
+		}
 	}
 }

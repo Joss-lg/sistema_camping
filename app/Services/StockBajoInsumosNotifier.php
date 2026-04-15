@@ -8,9 +8,6 @@ use Illuminate\Support\Collection;
 
 class StockBajoInsumosNotifier
 {
-    /** @var array<int, string> */
-    private const ROLES_DESTINO = ['GERENTE_COMPRAS', 'SUPER_ADMIN'];
-
     public function __construct(
         private readonly NotificacionSistemaPatternService $notificacionService
     ) {
@@ -94,15 +91,6 @@ class StockBajoInsumosNotifier
      */
     private function resolverUsuariosDestino(): Collection
     {
-        return User::query()
-            ->where('activo', true)
-            ->with('role:id,nombre,slug')
-            ->get(['id', 'role_id'])
-            ->filter(function (User $user): bool {
-                $roleKey = PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre ?: ''));
-
-                return in_array($roleKey, self::ROLES_DESTINO, true);
-            })
-            ->values();
+        return $this->notificacionService->usuariosActivos();
     }
 }

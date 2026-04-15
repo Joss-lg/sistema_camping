@@ -142,12 +142,16 @@ trait HandlesProduccionInventory
             return;
         }
 
+        // La plantilla BOM almacena cantidades por unidad producida (cantidad_produccion=1).
+        // Se escala por la cantidad de producción de la orden real.
+        $factorEscala = max(1.0, (float) $orden->cantidad_produccion);
+
         foreach ($lineasPlantilla as $index => $lineaPlantilla) {
             OrdenProduccionMaterial::query()->create([
                 'orden_produccion_id' => $orden->id,
                 'insumo_id' => (int) $lineaPlantilla->insumo_id,
                 'unidad_medida_id' => (int) $lineaPlantilla->unidad_medida_id,
-                'cantidad_necesaria' => round((float) $lineaPlantilla->cantidad_necesaria, 4),
+                'cantidad_necesaria' => round((float) $lineaPlantilla->cantidad_necesaria * $factorEscala, 4),
                 'cantidad_utilizada' => 0,
                 'cantidad_desperdicio' => 0,
                 'estado_asignacion' => 'Asignado',

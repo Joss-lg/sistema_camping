@@ -83,7 +83,9 @@
                                 default => 'lc-badge lc-badge-neutral',
                             };
                             $stockEntrante = (float) ($insumo->stock_entrante_confirmado ?? 0);
-                            $stockProyectado = (float) $insumo->stock_actual + $stockEntrante;
+                            $stockReservado = (float) ($insumo->stock_reservado ?? 0);
+                            $stockDisponible = max(0, (float) $insumo->stock_actual - $stockReservado);
+                            $stockProyectado = $stockDisponible + $stockEntrante;
                             $estaBajo = $stockProyectado <= (float) $insumo->stock_minimo;
                             $faltante = max(0, (float) $insumo->stock_minimo - (float) $insumo->stock_actual);
                             $cantidadSugerida = max((float) ($insumo->cantidad_minima_orden ?? 0), $faltante > 0 ? $faltante : 1);
@@ -104,6 +106,9 @@
                             <td>
                                 <div class="font-semibold text-slate-900">{{ number_format($stockProyectado, 2) }}</div>
                                 <div class="text-xs text-slate-500">Actual: {{ number_format((float) $insumo->stock_actual, 2) }} | Mínimo: {{ number_format((float) $insumo->stock_minimo, 2) }}</div>
+                                @if($stockReservado > 0)
+                                    <div class="mt-1 text-xs text-amber-700">Reservado: {{ number_format($stockReservado, 2) }} | Disponible: {{ number_format($stockDisponible, 2) }}</div>
+                                @endif
                                 @if($stockEntrante > 0)
                                     <div class="mt-1 text-xs text-emerald-700">Entrante confirmado: +{{ number_format($stockEntrante, 2) }}</div>
                                 @endif

@@ -17,7 +17,7 @@ class StoreBomRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'producto_id' => ['required', 'integer', 'exists:tipos_producto,id'],
+            'producto_nombre' => ['required', 'string', 'max:100'],
             'material_id' => ['required', 'array', 'min:1'],
             'material_id.*' => ['required', 'integer', 'exists:insumos,id'],
             'cantidad_base' => ['required', 'array', 'min:1'],

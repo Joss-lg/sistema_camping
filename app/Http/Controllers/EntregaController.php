@@ -7,6 +7,7 @@ use App\Models\LoteInsumo;
 use App\Models\MovimientoInventario;
 use App\Models\OrdenCompra;
 use App\Models\UbicacionAlmacen;
+use App\Services\NotificacionSistemaPatternService;
 use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -187,6 +188,103 @@ class EntregaController extends Controller
 
             $insumo->stock_actual = (float) $insumo->stock_actual + $cantidad;
             $insumo->save();
+
+            // Notificación informativa: se registró nuevo stock del insumo.
+            $notificacionService = app(NotificacionSistemaPatternService::class);
+            $destinatarios = $notificacionService->usuariosActivos();
+
+            foreach ($destinatarios as $usuario) {
+                $notificacionService->crearSiNoExisteHoy([
+                    'titulo' => 'Nuevo stock registrado',
+                    'mensaje' => sprintf(
+                        'Se registró entrada de stock para %s (%s). Cantidad: %.2f. Stock actual: %.2f.',
+                        (string) $insumo->nombre,
+                        (string) $insumo->codigo_insumo,
+                        $cantidad,
+                        (float) $insumo->stock_actual
+                    ),
+                    'tipo' => 'Informativa',
+                    'modulo' => 'Insumos',
+                    'prioridad' => 'Media',
+                    'user_id' => (int) $usuario->id,
+                    'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                    'estado' => 'Pendiente',
+                    'fecha_programada' => now(),
+                    'requiere_accion' => false,
+                    'url_accion' => '/insumos',
+                    'metadata' => [
+                        'tipo_alerta' => 'nuevo_stock_registrado',
+                        'insumo_id' => (int) $insumo->id,
+                        'codigo_insumo' => (string) $insumo->codigo_insumo,
+                        'cantidad_entregada' => $cantidad,
+                        'stock_actual' => (float) $insumo->stock_actual,
+                        'origen' => 'entregas.store.ingreso',
+                    ],
+                ], 'insumo_id', (int) $insumo->id);
+            }
+
+            // Notificación crítica: aun después del ingreso sigue por debajo del mínimo.
+            if ((float) $insumo->stock_actual <= (float) $insumo->stock_minimo) {
+                foreach ($destinatarios as $usuario) {
+                    $notificacionService->crearSiNoExisteHoy([
+                        'titulo' => 'Reabastecimiento insuficiente',
+                        'mensaje' => sprintf(
+                            'El insumo %s (%s) sigue bajo mínimo tras la recepción. Stock actual: %.2f, mínimo: %.2f.',
+                            (string) $insumo->nombre,
+                            (string) $insumo->codigo_insumo,
+                            (float) $insumo->stock_actual,
+                            (float) $insumo->stock_minimo
+                        ),
+                        'tipo' => 'Alerta',
+                        'modulo' => 'Compras',
+                        'prioridad' => 'Alta',
+                        'user_id' => (int) $usuario->id,
+                        'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                        'estado' => 'Pendiente',
+                        'fecha_programada' => now(),
+                        'requiere_accion' => true,
+                        'url_accion' => '/ordenes-compra/create',
+                        'metadata' => [
+                            'tipo_alerta' => 'reabastecimiento_insuficiente',
+                            'insumo_id' => (int) $insumo->id,
+                            'codigo_insumo' => (string) $insumo->codigo_insumo,
+                            'stock_actual' => (float) $insumo->stock_actual,
+                            'stock_minimo' => (float) $insumo->stock_minimo,
+                            'origen' => 'entregas.store.reabastecimiento_insuficiente',
+                        ],
+                    ], 'insumo_id', (int) $insumo->id);
+                }
+            }
+
+            if ((string) $data['estado_calidad'] === 'RECHAZADO') {
+                foreach ($destinatarios as $usuario) {
+                    $notificacionService->crearSiNoExisteHoy([
+                        'titulo' => 'Entrega rechazada por calidad',
+                        'mensaje' => sprintf(
+                            'Se registró una entrega rechazada del insumo %s (%s). Cantidad: %.2f. Revisar recepción y proveedor.',
+                            (string) $insumo->nombre,
+                            (string) $insumo->codigo_insumo,
+                            $cantidad
+                        ),
+                        'tipo' => 'Alerta',
+                        'modulo' => 'Compras',
+                        'prioridad' => 'Alta',
+                        'user_id' => (int) $usuario->id,
+                        'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                        'estado' => 'Pendiente',
+                        'fecha_programada' => now(),
+                        'requiere_accion' => true,
+                        'url_accion' => '/entregas',
+                        'metadata' => [
+                            'tipo_alerta' => 'entrega_rechazada_calidad',
+                            'insumo_id' => (int) $insumo->id,
+                            'codigo_insumo' => (string) $insumo->codigo_insumo,
+                            'cantidad_entregada' => $cantidad,
+                            'origen' => 'entregas.store.rechazado',
+                        ],
+                    ], 'insumo_id', (int) $insumo->id);
+                }
+            }
         });
 
         return redirect()->route('entregas.index')->with('ok', 'Recepción registrada correctamente.');

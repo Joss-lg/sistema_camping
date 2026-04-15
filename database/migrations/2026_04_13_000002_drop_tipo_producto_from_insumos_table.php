@@ -8,10 +8,20 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('insumos') || ! Schema::hasColumn('insumos', 'tipo_producto_id')) {
+            return;
+        }
+
+        try {
+            Schema::table('insumos', function (Blueprint $table) {
+                $table->dropIndex('insumos_tipo_producto_id_activo_index');
+            });
+        } catch (\Throwable) {
+            // El índice puede no existir en algunos entornos; ignorar.
+        }
+
         Schema::table('insumos', function (Blueprint $table) {
-            if (Schema::hasColumn('insumos', 'tipo_producto_id')) {
-                $table->dropConstrainedForeignId('tipo_producto_id');
-            }
+            $table->dropConstrainedForeignId('tipo_producto_id');
         });
     }
 
@@ -25,7 +35,7 @@ return new class extends Migration
                     ->constrained('tipos_producto')
                     ->nullOnDelete();
 
-                $table->index(['tipo_producto_id', 'activo']);
+                $table->index(['tipo_producto_id', 'activo'], 'insumos_tipo_producto_id_activo_index');
             }
         });
     }

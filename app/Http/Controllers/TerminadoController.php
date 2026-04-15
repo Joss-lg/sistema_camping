@@ -9,6 +9,7 @@ use App\Models\TrazabilidadEtapa;
 use App\Models\TrazabilidadRegistro;
 use App\Models\UbicacionAlmacen;
 use App\Services\IdentificacionProductoService;
+use App\Services\NotificacionSistemaPatternService;
 use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -304,6 +305,39 @@ class TerminadoController extends Controller
                     ? round(($orden->etapas_completadas / (int) $orden->etapas_totales) * 100, 2)
                     : 0;
                 $orden->save();
+
+                // Al rechazar calidad se notifica de forma general a todos los usuarios activos.
+                $notificacionService = app(NotificacionSistemaPatternService::class);
+                $destinatarios = $notificacionService->usuariosActivos();
+
+                foreach ($destinatarios as $usuario) {
+                    $notificacionService->crearSiNoExisteHoy([
+                        'titulo' => 'Producto rechazado en control de calidad',
+                        'mensaje' => sprintf(
+                            'Se rechazó el producto %s de la orden %s. Motivo: %s. Retorno a etapa: %s.',
+                            (string) ($orden->tipoProducto?->nombre ?? 'Producto terminado'),
+                            (string) ($orden->numero_orden ?? ('#' . $orden->id)),
+                            $motivoRechazo !== '' ? $motivoRechazo : 'Sin detalle',
+                            $nombreEtapaRetorno
+                        ),
+                        'tipo' => 'Alerta',
+                        'modulo' => 'Terminados',
+                        'prioridad' => 'Alta',
+                        'user_id' => (int) $usuario->id,
+                        'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                        'estado' => 'Pendiente',
+                        'fecha_programada' => now(),
+                        'requiere_accion' => true,
+                        'url_accion' => '/terminados',
+                        'metadata' => [
+                            'producto_terminado_id' => (int) $producto->id,
+                            'orden_produccion_id' => (int) $orden->id,
+                            'motivo_rechazo' => $motivoRechazo,
+                            'etapa_retorno' => $nombreEtapaRetorno,
+                            'origen' => 'terminados.revision_calidad_rechazo',
+                        ],
+                    ], 'producto_terminado_id', (int) $producto->id);
+                }
             });
         } catch (ValidationException $e) {
             return back()->withErrors($e->errors())->withInput();

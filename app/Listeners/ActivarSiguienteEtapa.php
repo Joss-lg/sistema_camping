@@ -64,36 +64,67 @@ class ActivarSiguienteEtapa
                     $siguienteEtapa->aprobado_por = null;
                     $siguienteEtapa->save();
 
-                    $destinatario = $siguienteEtapa->responsableArea ?: $this->buscarEncargadoArea($siguienteEtapa);
-                    $fallbackRoleId = PermisoService::resolveRoleByInput('SUPER_ADMIN')?->id
-                        ?: PermisoService::resolveRoleByInput('ADMIN')?->id;
+                    $destinatarios = $this->notificacionService->usuariosActivos();
 
-                    if (! $fallbackRoleId) {
-                        $fallbackRoleId = \App\Models\Role::query()->orderBy('id')->value('id');
+                    if ($destinatarios->isNotEmpty()) {
+                        foreach ($destinatarios as $usuario) {
+                            $this->notificacionService->crearSiNoExisteHoy([
+                                'titulo' => 'Aprobacion pendiente de etapa',
+                                'mensaje' => sprintf(
+                                    'La etapa "%s" de la orden %s esta esperando aprobacion manual.',
+                                    $siguienteEtapa->etapaPlantilla?->nombre ?? ('#' . $siguienteEtapa->etapa_plantilla_id),
+                                    $orden->numero_orden ?? ('#' . $orden->id)
+                                ),
+                                'tipo' => 'Informativa',
+                                'modulo' => 'Trazabilidad',
+                                'prioridad' => 'Alta',
+                                'user_id' => (int) $usuario->id,
+                                'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                                'estado' => 'Pendiente',
+                                'fecha_programada' => now(),
+                                'requiere_accion' => true,
+                                'url_accion' => '/trazabilidad',
+                                'metadata' => [
+                                    'orden_produccion_id' => $orden->id,
+                                    'trazabilidad_etapa_id' => $siguienteEtapa->id,
+                                    'origen' => 'listener.activar_siguiente_etapa',
+                                ],
+                            ], 'trazabilidad_etapa_id', (int) $siguienteEtapa->id);
+                        }
+                    } else {
+                        $fallbackRoleId = PermisoService::resolveRoleByInput('SUPER_ADMIN')?->id
+                            ?: PermisoService::resolveRoleByInput('ADMIN')?->id;
+
+                        if (! $fallbackRoleId) {
+                            $fallbackRoleId = \App\Models\Role::query()->orderBy('id')->value('id');
+                        }
+
+                        if ($fallbackRoleId) {
+                            $this->notificacionService->crearSiNoExisteHoy([
+                                'titulo' => 'Aprobacion pendiente de etapa',
+                                'mensaje' => sprintf(
+                                    'La etapa "%s" de la orden %s esta esperando aprobacion manual.',
+                                    $siguienteEtapa->etapaPlantilla?->nombre ?? ('#' . $siguienteEtapa->etapa_plantilla_id),
+                                    $orden->numero_orden ?? ('#' . $orden->id)
+                                ),
+                                'tipo' => 'Informativa',
+                                'modulo' => 'Trazabilidad',
+                                'prioridad' => 'Alta',
+                                'user_id' => null,
+                                'role_id' => (int) $fallbackRoleId,
+                                'estado' => 'Pendiente',
+                                'fecha_programada' => now(),
+                                'requiere_accion' => true,
+                                'url_accion' => '/trazabilidad',
+                                'metadata' => [
+                                    'orden_produccion_id' => $orden->id,
+                                    'trazabilidad_etapa_id' => $siguienteEtapa->id,
+                                    'origen' => 'listener.activar_siguiente_etapa',
+                                ],
+                            ], 'trazabilidad_etapa_id', (int) $siguienteEtapa->id);
+                        }
                     }
 
-                    $this->notificacionService->crear([
-                        'titulo' => 'Aprobacion pendiente de etapa',
-                        'mensaje' => sprintf(
-                            'La etapa "%s" de la orden %s esta esperando aprobacion manual.',
-                            $siguienteEtapa->etapaPlantilla?->nombre ?? ('#' . $siguienteEtapa->etapa_plantilla_id),
-                            $orden->numero_orden ?? ('#' . $orden->id)
-                        ),
-                        'tipo' => 'Informativa',
-                        'modulo' => 'Trazabilidad',
-                        'prioridad' => 'Alta',
-                        'user_id' => $destinatario?->id,
-                        'role_id' => $destinatario?->role_id ?: $fallbackRoleId,
-                        'estado' => 'Pendiente',
-                        'fecha_programada' => now(),
-                        'requiere_accion' => true,
-                        'url_accion' => '/trazabilidad',
-                        'metadata' => [
-                            'orden_produccion_id' => $orden->id,
-                            'trazabilidad_etapa_id' => $siguienteEtapa->id,
-                            'origen' => 'listener.activar_siguiente_etapa',
-                        ],
-                    ]);
                     return;
                 }
 

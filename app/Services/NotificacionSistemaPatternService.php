@@ -9,19 +9,47 @@ use Illuminate\Support\Collection;
 class NotificacionSistemaPatternService
 {
     /**
+     * @return Collection<int, User>
+     */
+    public function usuariosActivos(): Collection
+    {
+        $usuarios = User::query()
+            ->with('role:id,slug,nombre')
+            ->where('activo', true)
+            ->get(['id', 'role_id']);
+
+        if ($usuarios->isNotEmpty()) {
+            return $usuarios;
+        }
+
+        // Fallback defensivo para entornos donde el flag activo no está correctamente sembrado.
+        return User::query()
+            ->with('role:id,slug,nombre')
+            ->get(['id', 'role_id']);
+    }
+
+    /**
      * @param array<int, string> $rolesPermitidos
      * @return Collection<int, User>
      */
     public function usuariosActivosPorRoles(array $rolesPermitidos): Collection
     {
-        return User::query()
-            ->where('activo', true)
-            ->with('role:id,nombre,slug')
-            ->get(['id', 'role_id'])
-            ->filter(function (User $user) use ($rolesPermitidos): bool {
-                $roleKey = PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre ?: ''));
+        $rolesNormalizados = collect($rolesPermitidos)
+            ->map(fn (string $rol): string => PermisoService::normalizeRoleKey($rol))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
-                return in_array($roleKey, $rolesPermitidos, true);
+        if ($rolesNormalizados === []) {
+            return $this->usuariosActivos();
+        }
+
+        return $this->usuariosActivos()
+            ->filter(function (User $user) use ($rolesNormalizados): bool {
+                $roleKey = PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre));
+
+                return in_array($roleKey, $rolesNormalizados, true);
             })
             ->values();
     }

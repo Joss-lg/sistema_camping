@@ -23,6 +23,22 @@
         ? ($isSuperAdmin || $authUser->canCustom($module, $action))
         : false;
 
+    $latestNotifications = $authUser
+        ? \App\Models\NotificacionSistema::query()
+            ->paraUsuario($authUser)
+            ->noArchivadas()
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+        : collect();
+
+    $pendingNotificationsCount = $authUser
+        ? \App\Models\NotificacionSistema::query()
+            ->paraUsuario($authUser)
+            ->where('estado', 'Pendiente')
+            ->count()
+        : 0;
+
     $groupProveedorOpen = request()->routeIs('entregas.*');
     $groupAbastecimientoOpen = request()->routeIs('proveedores.*')
         || request()->routeIs('ordenes-compra.*')
@@ -246,6 +262,11 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 1-5.714 0A8.967 8.967 0 0 1 6 9.75a6 6 0 1 1 12 0 8.967 8.967 0 0 1-3.143 7.332ZM9 17.25h6a3 3 0 1 1-6 0Z" />
                     </svg>
                     <span>Notificaciones</span>
+                    @if ($pendingNotificationsCount > 0)
+                        <span class="ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                            {{ $pendingNotificationsCount > 99 ? '99+' : $pendingNotificationsCount }}
+                        </span>
+                    @endif
                 </a>
                 @if ($canAccess('Reportes') || $canAccess('Permisos'))
                 </div>
@@ -312,6 +333,80 @@
                 </button>
             </div>
             <div class="lc-shell min-h-[calc(100vh-3rem)] p-5 lg:p-6">
+                <div class="mb-5 flex items-center justify-end gap-3">
+                    <div
+                        x-data="notificationBell({
+                            summaryUrl: '{{ route('notificaciones.resumen') }}',
+                            pendingCount: {{ $pendingNotificationsCount }},
+                            items: @js($latestNotifications->map(fn ($notificationItem) => [
+                                'id' => $notificationItem->id,
+                                'titulo' => (string) $notificationItem->titulo,
+                                'mensaje' => (string) $notificationItem->mensaje,
+                                'estado' => (string) $notificationItem->estado,
+                                'url' => $notificationItem->url_accion ? url((string) $notificationItem->url_accion) : route('notificaciones.index'),
+                                'created_at' => optional($notificationItem->created_at)?->format('d/m/Y H:i'),
+                            ])->values()),
+                            pollMs: 15000,
+                        })"
+                        x-init="init()"
+                        class="relative"
+                    >
+                        <button
+                            type="button"
+                            x-on:click="toggle()"
+                            x-on:click.outside="open = false"
+                            aria-label="Notificaciones ({{ $pendingNotificationsCount }} pendientes)"
+                            :aria-label="'Notificaciones (' + pendingCount + ' pendientes)'"
+                            class="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-600"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" class="h-6 w-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 1-5.714 0A8.967 8.967 0 0 1 6 9.75a6 6 0 1 1 12 0 8.967 8.967 0 0 1-3.143 7.332ZM9 17.25h6a3 3 0 1 1-6 0Z" />
+                            </svg>
+                            <span
+                                x-cloak
+                                x-show="pendingCount > 0"
+                                x-text="pendingCount > 99 ? '99+' : pendingCount"
+                                class="absolute -right-1 -top-1 inline-flex min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold text-white ring-2 ring-white"
+                            >{{ $pendingNotificationsCount > 99 ? '99+' : $pendingNotificationsCount }}</span>
+                        </button>
+
+                        <div
+                            x-cloak
+                            x-show="open"
+                            x-transition
+                            class="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+                        >
+                            <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-900">Notificaciones</p>
+                                    <p class="text-xs text-slate-500" x-text="pendingCount + ' pendiente(s)'"></p>
+                                </div>
+                                <a href="{{ route('notificaciones.index') }}" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Ver todas</a>
+                            </div>
+
+                            <div class="max-h-96 overflow-y-auto">
+                                <template x-if="items.length === 0">
+                                    <div class="px-4 py-6 text-center text-sm text-slate-500">
+                                        No tienes notificaciones por ahora.
+                                    </div>
+                                </template>
+
+                                <template x-for="item in items" :key="item.id">
+                                    <a :href="item.url" class="block border-b border-slate-100 px-4 py-3 hover:bg-slate-50">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p class="text-sm font-semibold text-slate-800" x-text="item.titulo"></p>
+                                                <p class="mt-1 text-xs text-slate-600 line-clamp-2" x-text="item.mensaje"></p>
+                                            </div>
+                                            <span x-show="item.estado === 'Pendiente'" class="mt-1 h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                                        </div>
+                                        <p class="mt-2 text-[11px] text-slate-400" x-text="item.created_at"></p>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 @if (session('ok'))
                     <div class="lc-alert lc-alert-success mb-4 border border-green-200 bg-green-50 text-sm text-green-800">

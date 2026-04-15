@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\DB;
 
 class ProduccionConsumoService
 {
+    public function __construct(
+        private readonly NotificacionSistemaPatternService $notificacionService
+    ) {
+    }
+
     public function registrarConsumo(
         OrdenProduccion $orden,
         Insumo $material,
@@ -24,6 +29,7 @@ class ProduccionConsumoService
         ?string $motivoMerma
     ): void {
         DB::transaction(function () use ($orden, $material, $lineaMaterial, $lote, $cantidadUsada, $cantidadMerma, $total, $tipoMerma, $motivoMerma): void {
+            $estadoAnteriorLinea = (string) $lineaMaterial->estado_asignacion;
             $tipoMerma = (string) ($tipoMerma ?? 'Otro');
             $observaciones = $motivoMerma;
 
@@ -61,6 +67,69 @@ class ProduccionConsumoService
                 ? 'Consumido'
                 : 'Parcial';
             $lineaMaterial->save();
+
+            $destinatarios = $this->notificacionService->usuariosActivos();
+
+            if ($estadoAnteriorLinea !== 'Consumido' && (string) $lineaMaterial->estado_asignacion === 'Consumido') {
+                foreach ($destinatarios as $usuario) {
+                    $this->notificacionService->crearSiNoExisteHoy([
+                        'titulo' => 'Material completado en orden',
+                        'mensaje' => sprintf(
+                            'El material %s quedó completado para la orden %s.',
+                            (string) $material->nombre,
+                            (string) ($orden->numero_orden ?: ('#' . $orden->id))
+                        ),
+                        'tipo' => 'Informativa',
+                        'modulo' => 'Produccion',
+                        'prioridad' => 'Media',
+                        'user_id' => (int) $usuario->id,
+                        'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                        'estado' => 'Pendiente',
+                        'fecha_programada' => now(),
+                        'requiere_accion' => false,
+                        'url_accion' => '/produccion',
+                        'metadata' => [
+                            'tipo_alerta' => 'material_completado_orden',
+                            'orden_produccion_material_id' => (int) $lineaMaterial->id,
+                            'orden_produccion_id' => (int) $orden->id,
+                            'insumo_id' => (int) $material->id,
+                            'origen' => 'produccion.consumo.material_completado',
+                        ],
+                    ], 'orden_produccion_material_id', (int) $lineaMaterial->id);
+                }
+            }
+
+            $lineasPendientes = OrdenProduccionMaterial::query()
+                ->where('orden_produccion_id', $orden->id)
+                ->whereRaw("LOWER(estado_asignacion) != 'consumido'")
+                ->whereRaw("LOWER(estado_asignacion) != 'cancelado'")
+                ->count();
+
+            if ($lineasPendientes === 0) {
+                foreach ($destinatarios as $usuario) {
+                    $this->notificacionService->crearSiNoExisteHoy([
+                        'titulo' => 'Materiales finalizados de la orden',
+                        'mensaje' => sprintf(
+                            'Todos los materiales de la orden %s fueron consumidos/completados.',
+                            (string) ($orden->numero_orden ?: ('#' . $orden->id))
+                        ),
+                        'tipo' => 'Alerta',
+                        'modulo' => 'Produccion',
+                        'prioridad' => 'Alta',
+                        'user_id' => (int) $usuario->id,
+                        'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                        'estado' => 'Pendiente',
+                        'fecha_programada' => now(),
+                        'requiere_accion' => true,
+                        'url_accion' => '/produccion',
+                        'metadata' => [
+                            'tipo_alerta' => 'materiales_finalizados_orden',
+                            'orden_produccion_id' => (int) $orden->id,
+                            'origen' => 'produccion.consumo.materiales_finalizados',
+                        ],
+                    ], 'orden_produccion_id', (int) $orden->id);
+                }
+            }
         });
     }
 }

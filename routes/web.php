@@ -84,6 +84,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Notificaciones del sistema
     Route::get('notificaciones', [NotificacionSistemaController::class, 'index'])->name('notificaciones.index');
+    Route::get('notificaciones/resumen', [NotificacionSistemaController::class, 'resumen'])->name('notificaciones.resumen');
     Route::get('notificaciones/archivadas', [NotificacionSistemaController::class, 'archivadas'])->name('notificaciones.archivadas');
     Route::patch('notificaciones/{id}/marcar-leida', [NotificacionSistemaController::class, 'marcarLeida'])->name('notificaciones.marcar-leida');
     Route::patch('notificaciones/{id}/archivar', [NotificacionSistemaController::class, 'archivar'])->name('notificaciones.archivar');

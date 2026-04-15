@@ -81,7 +81,7 @@
                             </td>
                             <td>
                                 <div class="text-sm text-slate-700">
-                                    Actual: <span class="font-semibold">{{ number_format((float) $ubicacion->capacidad_actual, 2) }}</span>
+                                    Actual: <span class="font-semibold">{{ number_format((float)(($ubicacion->stock_insumos ?? 0) + ($ubicacion->stock_terminados ?? 0)), 2) }}</span>
                                 </div>
                                 <div class="text-xs text-slate-500">
                                     Max: {{ $ubicacion->capacidad_maxima !== null ? number_format((float) $ubicacion->capacidad_maxima, 2) : 'Sin limite' }}

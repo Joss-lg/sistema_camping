@@ -64,20 +64,28 @@
                         <h3 class="text-md font-semibold text-slate-800 mb-4">Paso 1: Seleccionar Producto</h3>
                         <div class="flex flex-col md:flex-row md:items-end gap-4">
                             <div class="flex-1">
-                                <label for="producto_id" class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
+                                <label for="producto_nombre" class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                                     </svg>
                                     Producto
                                 </label>
-                                <select id="producto_id" name="producto_id" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
-                                    <option value="">Selecciona un producto</option>
+                                <input
+                                    id="producto_nombre"
+                                    name="producto_nombre"
+                                    type="text"
+                                    list="productos_existentes"
+                                    value="{{ old('producto_nombre') }}"
+                                    required
+                                    maxlength="100"
+                                    placeholder="Escribe el producto a crear o selecciona uno existente"
+                                    class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
+                                <datalist id="productos_existentes">
                                     @foreach ($productos as $producto)
-                                        <option value="{{ $producto->id }}" @selected((int) old('producto_id') === (int) $producto->id)>
-                                            {{ $producto->nombre }} ({{ $producto->sku }})
-                                        </option>
+                                        <option value="{{ $producto->nombre }}">{{ $producto->sku }}</option>
                                     @endforeach
-                                </select>
+                                </datalist>
+                                <p class="mt-1 text-xs text-slate-500">Si no existe, se creará automáticamente y quedará disponible para futuros registros.</p>
                             </div>
                         </div>
                     </div>
@@ -221,7 +229,10 @@
                                         @foreach ($receta->materiales as $material)
                                             <li class="text-slate-700">
                                                 {{ $material->nombre ?? '-' }}
-                                                <span class="text-slate-500">x {{ rtrim(rtrim(number_format((float) $material->cantidad_base, 4), '0'), '.') }}</span>
+                                                <span class="text-slate-500">
+                                                    x {{ rtrim(rtrim(number_format((float) $material->cantidad_base, 4), '0'), '.') }}
+                                                    {{ $material->unidad ? ' ' . $material->unidad : '' }}
+                                                </span>
                                             </li>
                                         @endforeach
                                     </ul>
@@ -302,9 +313,9 @@
 
     function validateStep(step) {
         if (step === 1) {
-            const productoId = document.getElementById('producto_id').value;
-            if (!productoId) {
-                alert('Por favor selecciona un producto.');
+            const productoNombre = document.getElementById('producto_nombre').value.trim();
+            if (!productoNombre) {
+                alert('Por favor ingresa el producto.');
                 return false;
             }
         } else if (step === 2) {

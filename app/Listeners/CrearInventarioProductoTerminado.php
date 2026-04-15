@@ -8,6 +8,7 @@ use App\Models\OrdenProduccion;
 use App\Models\ProductoTerminado;
 use App\Models\UbicacionAlmacen;
 use App\Services\IdentificacionProductoService;
+use App\Services\NotificacionSistemaPatternService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -142,6 +143,34 @@ class CrearInventarioProductoTerminado
                         'notas' => 'Ingreso automatico por cierre de orden ' . $orden->numero_orden . '. Pendiente de aprobación de calidad.',
                         'requiere_inspeccion_periodica' => true,
                     ]);
+                }
+
+                $notificacionService = app(NotificacionSistemaPatternService::class);
+                $destinatarios = $notificacionService->usuariosActivos();
+
+                foreach ($destinatarios as $usuario) {
+                    $notificacionService->crearSiNoExisteHoy([
+                        'titulo' => 'Orden finalizada y enviada a inspección',
+                        'mensaje' => sprintf(
+                            'La orden %s finalizó producción y su producto quedó pendiente de inspección de calidad.',
+                            (string) ($orden->numero_orden ?: ('#' . $orden->id))
+                        ),
+                        'tipo' => 'Alerta',
+                        'modulo' => 'Terminados',
+                        'prioridad' => 'Alta',
+                        'user_id' => (int) $usuario->id,
+                        'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+                        'estado' => 'Pendiente',
+                        'fecha_programada' => now(),
+                        'requiere_accion' => true,
+                        'url_accion' => '/terminados',
+                        'metadata' => [
+                            'tipo_alerta' => 'orden_finalizada_pendiente_inspeccion',
+                            'orden_produccion_id' => (int) $orden->id,
+                            'producto_terminado_id' => (int) $productoTerminado->id,
+                            'origen' => 'listener.crear_inventario_producto_terminado',
+                        ],
+                    ], 'orden_produccion_id', (int) $orden->id);
                 }
             });
         } catch (\Throwable $e) {

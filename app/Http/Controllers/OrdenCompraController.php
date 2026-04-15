@@ -13,6 +13,7 @@ use App\Models\OrdenCompra;
 use App\Models\Proveedor;
 use App\Models\UbicacionAlmacen;
 use App\Models\UnidadMedida;
+use App\Services\NotificacionSistemaPatternService;
 use App\Services\PermisoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -508,6 +509,8 @@ class OrdenCompraController extends Controller
 		}
 
 		$fechaMovimiento = $fechaEntrega ?: now()->toDateString();
+		$notificacionService = app(NotificacionSistemaPatternService::class);
+		$destinatarios = $notificacionService->usuariosActivos();
 
 		foreach ($payloadDetalles as $item) {
 			$detalleId = isset($item['detalle_id']) ? (int) $item['detalle_id'] : 0;
@@ -566,6 +569,99 @@ class OrdenCompraController extends Controller
 				'saldo_anterior' => $saldoAnterior,
 				'saldo_posterior' => $saldoPosterior,
 			]);
+
+			foreach ($destinatarios as $usuario) {
+				$notificacionService->crearSiNoExisteHoy([
+					'titulo' => 'Nuevo stock registrado',
+					'mensaje' => sprintf(
+						'Se recibio stock del insumo %s (%s) por OC %s. Cantidad aceptada: %.2f. Stock actual: %.2f.',
+						(string) $insumo->nombre,
+						(string) $insumo->codigo_insumo,
+						(string) $ordenCompra->numero_orden,
+						$cantidadAceptada,
+						$saldoPosterior
+					),
+					'tipo' => 'Informativa',
+					'modulo' => 'Compras',
+					'prioridad' => 'Media',
+					'user_id' => (int) $usuario->id,
+					'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+					'estado' => 'Pendiente',
+					'fecha_programada' => now(),
+					'requiere_accion' => false,
+					'url_accion' => '/insumos',
+					'metadata' => [
+						'tipo_alerta' => 'nuevo_stock_oc',
+						'alerta_insumo' => 'nuevo_stock_oc:' . (int) $insumo->id,
+						'orden_compra_id' => (int) $ordenCompra->id,
+						'insumo_id' => (int) $insumo->id,
+						'origen' => 'ordenes_compra.recibir',
+					],
+				], 'alerta_insumo', 'nuevo_stock_oc:' . (int) $insumo->id);
+
+				if ($saldoPosterior <= (float) $insumo->stock_minimo) {
+					$notificacionService->crearSiNoExisteHoy([
+						'titulo' => 'Reabastecimiento insuficiente',
+						'mensaje' => sprintf(
+							'El insumo %s (%s) sigue bajo minimo despues de recibir OC %s. Stock actual: %.2f, minimo: %.2f.',
+							(string) $insumo->nombre,
+							(string) $insumo->codigo_insumo,
+							(string) $ordenCompra->numero_orden,
+							$saldoPosterior,
+							(float) $insumo->stock_minimo
+						),
+						'tipo' => 'Alerta',
+						'modulo' => 'Compras',
+						'prioridad' => 'Alta',
+						'user_id' => (int) $usuario->id,
+						'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+						'estado' => 'Pendiente',
+						'fecha_programada' => now(),
+						'requiere_accion' => true,
+						'url_accion' => '/ordenes-compra/create',
+						'metadata' => [
+							'tipo_alerta' => 'reabastecimiento_insuficiente_oc',
+							'alerta_insumo' => 'reabastecimiento_insuficiente_oc:' . (int) $insumo->id,
+							'orden_compra_id' => (int) $ordenCompra->id,
+							'insumo_id' => (int) $insumo->id,
+							'stock_actual' => $saldoPosterior,
+							'stock_minimo' => (float) $insumo->stock_minimo,
+							'origen' => 'ordenes_compra.recibir',
+						],
+					], 'alerta_insumo', 'reabastecimiento_insuficiente_oc:' . (int) $insumo->id);
+				}
+
+				if ($cantidadAceptada < $cantidadRecibida) {
+					$notificacionService->crearSiNoExisteHoy([
+						'titulo' => 'Recepcion parcial o rechazada',
+						'mensaje' => sprintf(
+							'La recepcion de %s (%s) en OC %s tuvo diferencia: recibido %.2f, aceptado %.2f.',
+							(string) $insumo->nombre,
+							(string) $insumo->codigo_insumo,
+							(string) $ordenCompra->numero_orden,
+							$cantidadRecibida,
+							$cantidadAceptada
+						),
+						'tipo' => 'Alerta',
+						'modulo' => 'Compras',
+						'prioridad' => 'Alta',
+						'user_id' => (int) $usuario->id,
+						'role_id' => $usuario->role_id ? (int) $usuario->role_id : null,
+						'estado' => 'Pendiente',
+						'fecha_programada' => now(),
+						'requiere_accion' => true,
+						'url_accion' => '/ordenes-compra/' . (int) $ordenCompra->id,
+						'metadata' => [
+							'tipo_alerta' => 'recepcion_parcial_rechazada_oc',
+							'alerta_detalle' => 'recepcion_parcial_rechazada_oc:' . (int) $detalle->id,
+							'orden_compra_id' => (int) $ordenCompra->id,
+							'detalle_id' => (int) $detalle->id,
+							'insumo_id' => (int) $insumo->id,
+							'origen' => 'ordenes_compra.recibir',
+						],
+					], 'alerta_detalle', 'recepcion_parcial_rechazada_oc:' . (int) $detalle->id);
+				}
+			}
 		}
 
 		$ordenCompra->update([

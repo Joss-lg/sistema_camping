@@ -233,6 +233,14 @@ class OrdenProduccion extends Model
         return $query->whereIn('estado', [self::ESTADO_PENDIENTE, self::ESTADO_EN_PROCESO, self::ESTADO_EN_PAUSA]);
     }
 
+    public function scopeOperativas($query)
+    {
+        return $query->where(function ($subQuery) {
+            $subQuery->where('es_plantilla_bom', false)
+                ->orWhereNull('es_plantilla_bom');
+        });
+    }
+
     public static function esEstadoFinalizado(?string $estado): bool
     {
         return in_array((string) $estado, self::ESTADOS_FINALIZADAS, true);

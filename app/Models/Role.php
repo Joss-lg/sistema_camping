@@ -37,4 +37,5 @@ class Role extends Model
     {
         return $this->hasMany(NotificacionSistema::class, 'role_id');
     }
+
 }

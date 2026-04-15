@@ -22,6 +22,7 @@ class OrdenProduccionController extends Controller
         $this->authorize('viewAny', OrdenProduccion::class);
 
         $query = OrdenProduccion::query()
+            ->operativas()
             ->with(['tipoProducto', 'unidadMedida', 'user'])
             ->orderByDesc('fecha_orden');
 

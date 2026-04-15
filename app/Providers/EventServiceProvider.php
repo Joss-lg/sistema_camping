@@ -10,6 +10,7 @@ use App\Listeners\ActivarSiguienteEtapa;
 use App\Listeners\ActualizarStockInsumo;
 use App\Listeners\CrearInventarioProductoTerminado;
 use App\Listeners\GenerarEtapasTrazabilidad;
+use App\Listeners\LiberarReservaInsumos;
 use App\Listeners\VerificarStockBajo;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
@@ -28,6 +29,7 @@ class EventServiceProvider extends ServiceProvider
         ],
         OrdenProduccionCompletada::class => [
             CrearInventarioProductoTerminado::class,
+            LiberarReservaInsumos::class,
         ],
     ];
 

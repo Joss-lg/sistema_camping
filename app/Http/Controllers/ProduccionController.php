@@ -20,11 +20,13 @@ use App\Models\User;
 use App\Services\PermisoService;
 use App\Services\ProduccionConsumoService;
 use App\Services\ProduccionSeguimientoService;
+use App\Services\ReservaInsumosService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class ProduccionController extends Controller
@@ -46,7 +48,8 @@ class ProduccionController extends Controller
 
     public function __construct(
         protected readonly ProduccionConsumoService $consumoService,
-        protected readonly ProduccionSeguimientoService $seguimientoService
+        protected readonly ProduccionSeguimientoService $seguimientoService,
+        protected readonly ReservaInsumosService $reservaService
     ) {
     }
 
@@ -179,6 +182,9 @@ class ProduccionController extends Controller
 
         // Al crear una orden operativa se replica su receta BOM para habilitar seguimiento y consumo por material.
         $this->sincronizarMaterialesDesdeBom($orden);
+
+        // Reservar los materiales requeridos en inventario para bloquear stock disponible.
+        $this->reservaService->reservar($orden);
 
         event(new OrdenProduccionCreada($orden));
 
@@ -348,6 +354,9 @@ class ProduccionController extends Controller
             ->findOrFail($id);
 
         DB::transaction(function () use ($orden): void {
+            // Liberar la reserva de materiales antes de revertir consumos.
+            $this->reservaService->liberar($orden);
+
             // Revertir consumos registrados: devolver stock al insumo y al lote
             foreach ($orden->consumosMateriales as $consumo) {
                 $totalRevertir = (float) $consumo->cantidad_consumida + (float) $consumo->cantidad_desperdicio;
@@ -626,7 +635,7 @@ class ProduccionController extends Controller
             ]);
 
         $recetas = OrdenProduccionMaterial::query()
-            ->with(['ordenProduccion.tipoProducto:id,nombre,slug', 'insumo:id,nombre'])
+            ->with(['ordenProduccion.tipoProducto:id,nombre,slug', 'insumo:id,nombre', 'unidadMedida:id,nombre,abreviatura'])
             ->whereHas('ordenProduccion', function ($query): void {
                 $query->where('es_plantilla_bom', true);
             })
@@ -649,6 +658,7 @@ class ProduccionController extends Controller
                         ->map(fn (OrdenProduccionMaterial $linea): object => (object) [
                             'nombre' => $linea->insumo?->nombre,
                             'cantidad_base' => (float) $linea->cantidad_necesaria,
+                            'unidad' => $linea->unidadMedida?->abreviatura ?: $linea->unidadMedida?->nombre,
                             'activo' => mb_strtolower((string) $linea->estado_asignacion) !== 'cancelado',
                         ])
                         ->values(),
@@ -673,16 +683,21 @@ class ProduccionController extends Controller
         abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion', 'editar'), 403);
 
         $data = $request->validated();
+        $producto = $this->resolverTipoProductoParaBom((string) ($data['producto_nombre'] ?? ''));
+
+        if (! $producto) {
+            return back()->withErrors(['producto_nombre' => 'Debes indicar un producto válido para registrar su receta BOM.'])->withInput();
+        }
 
         $unidadId = UnidadMedida::query()->where('activo', true)->value('id')
             ?? UnidadMedida::query()->value('id');
 
         if (! $unidadId) {
-            return back()->withErrors(['producto_id' => 'No existe unidad de medida para registrar BOM.'])->withInput();
+            return back()->withErrors(['producto_nombre' => 'No existe unidad de medida para registrar BOM.'])->withInput();
         }
 
-        DB::transaction(function () use ($data, $unidadId): void {
-            $ordenBase = $this->obtenerOrdenPlantillaBom((int) $data['producto_id'], (int) $unidadId);
+        DB::transaction(function () use ($data, $unidadId, $producto): void {
+            $ordenBase = $this->obtenerOrdenPlantillaBom((int) $producto->id, (int) $unidadId);
 
             foreach ($data['material_id'] as $i => $materialId) {
                 $insumo = Insumo::query()->find((int) $materialId);
@@ -723,6 +738,45 @@ class ProduccionController extends Controller
         });
 
         return redirect()->route('produccion.bom.index')->with('ok', 'Líneas de BOM guardadas correctamente.');
+    }
+
+    private function resolverTipoProductoParaBom(string $nombreProducto): ?TipoProducto
+    {
+        $nombreLimpio = trim($nombreProducto);
+
+        if ($nombreLimpio === '') {
+            return null;
+        }
+
+        $existente = TipoProducto::query()
+            ->whereRaw('LOWER(nombre) = ?', [mb_strtolower($nombreLimpio)])
+            ->first();
+
+        if ($existente) {
+            if (! (bool) $existente->activo) {
+                $existente->update(['activo' => true]);
+            }
+
+            return $existente;
+        }
+
+        $slugBase = Str::slug($nombreLimpio);
+        if ($slugBase === '') {
+            $slugBase = 'producto';
+        }
+
+        $slug = $slugBase;
+        $suffix = 2;
+        while (TipoProducto::query()->where('slug', $slug)->exists()) {
+            $slug = $slugBase . '-' . $suffix;
+            $suffix++;
+        }
+
+        return TipoProducto::query()->create([
+            'nombre' => $nombreLimpio,
+            'slug' => $slug,
+            'activo' => true,
+        ]);
     }
 
 }

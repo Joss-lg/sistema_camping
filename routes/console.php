@@ -2,6 +2,8 @@
 
 use App\Jobs\CalcularCostosPromedioJob;
 use App\Jobs\GenerarOrdenesCompraAutomaticasJob;
+use App\Jobs\VerificarPendientesInspeccionTerminadosJob;
+use App\Jobs\VerificarReabastecimientoPendienteJob;
 use App\Jobs\VerificarOrdenesAtrasadasJob;
 use App\Jobs\VerificarStockBajoJob;
 use App\Jobs\VerificarStockBajoTerminadosJob;
@@ -23,6 +25,10 @@ Schedule::job(new VerificarStockBajoTerminadosJob())
     ->name('verificar-stock-bajo-terminados')
     ->dailyAt('08:05');
 
+Schedule::job(new VerificarPendientesInspeccionTerminadosJob())
+    ->name('verificar-pendientes-inspeccion-terminados')
+    ->dailyAt('08:07');
+
 Schedule::job(new GenerarOrdenesCompraAutomaticasJob())
     ->name('generar-ordenes-compra-automaticas')
     ->everyFourHours();
@@ -30,6 +36,10 @@ Schedule::job(new GenerarOrdenesCompraAutomaticasJob())
 Schedule::job(new VerificarOrdenesAtrasadasJob())
     ->name('verificar-ordenes-atrasadas-diario')
     ->dailyAt('08:10');
+
+Schedule::job(new VerificarReabastecimientoPendienteJob())
+    ->name('verificar-reabastecimiento-pendiente')
+    ->dailyAt('08:12');
 
 Schedule::job(new VerificarVencimientoLotesJob())
     ->name('verificar-vencimiento-lotes-diario')

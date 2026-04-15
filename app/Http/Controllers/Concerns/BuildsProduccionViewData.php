@@ -40,7 +40,7 @@ trait BuildsProduccionViewData
     protected function buildOrdenesQuery()
     {
         return OrdenProduccion::query()
-            ->where('es_plantilla_bom', false)
+            ->operativas()
             ->with([
                 'tipoProducto:id,nombre,slug',
                 'user:id,name',

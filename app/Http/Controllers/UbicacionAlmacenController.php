@@ -27,7 +27,11 @@ class UbicacionAlmacenController extends Controller
         $tipo = trim((string) $request->query('tipo', ''));
         $estado = trim((string) $request->query('estado', ''));
 
-        $query = UbicacionAlmacen::query()->orderByDesc('activo')->orderBy('codigo_ubicacion');
+        $query = UbicacionAlmacen::query()
+            ->withSum('insumos as stock_insumos', 'stock_actual')
+            ->withSum('inventarioProductosTerminados as stock_terminados', 'cantidad_en_almacen')
+            ->orderByDesc('activo')
+            ->orderBy('codigo_ubicacion');
 
         if ($q !== '') {
             $query->where(function ($subQuery) use ($q): void {

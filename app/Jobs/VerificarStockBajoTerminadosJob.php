@@ -3,9 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\InventarioProductoTerminado;
-use App\Models\User;
 use App\Services\NotificacionSistemaPatternService;
-use App\Services\PermisoService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -44,18 +42,7 @@ class VerificarStockBajoTerminadosJob implements ShouldQueue
             return;
         }
 
-        $rolesPermitidos = ['SUPER_ADMIN', 'SUPERVISOR_ALMACEN', 'GERENTE_PRODUCCION'];
-
-        $destinatarios = User::query()
-            ->where('activo', true)
-            ->with('role:id,nombre,slug')
-            ->get(['id', 'role_id'])
-            ->filter(function (User $user) use ($rolesPermitidos): bool {
-                $roleKey = PermisoService::normalizeRoleKey((string) ($user->role?->slug ?: $user->role?->nombre ?: ''));
-
-                return in_array($roleKey, $rolesPermitidos, true);
-            })
-            ->values();
+        $destinatarios = $notificacionService->usuariosActivos();
 
         if ($destinatarios->isEmpty()) {
             return;
