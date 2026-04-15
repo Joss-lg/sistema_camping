@@ -19,11 +19,12 @@ class StoreBomRequest extends FormRequest
         return [
             'producto_nombre' => ['required', 'string', 'max:100'],
             'material_id' => ['required', 'array', 'min:1'],
-            'material_id.*' => ['required', 'integer', 'exists:insumos,id'],
+            'material_id.*' => ['required', 'integer', 'distinct', 'exists:insumos,id'],
             'cantidad_base' => ['required', 'array', 'min:1'],
             'cantidad_base.*' => ['required', 'numeric', 'gt:0'],
             'activo' => ['nullable', 'array'],
             'activo.*' => ['nullable', 'in:0,1'],
+            'activo_general' => ['nullable', 'in:0,1'],
         ];
     }
 }

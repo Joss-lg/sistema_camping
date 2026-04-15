@@ -662,7 +662,7 @@ class ProduccionController extends Controller
                             'activo' => mb_strtolower((string) $linea->estado_asignacion) !== 'cancelado',
                         ])
                         ->values(),
-                    'activo' => $lineas->contains(fn (OrdenProduccionMaterial $linea): bool => mb_strtolower((string) $linea->estado_asignacion) !== 'cancelado'),
+                    'activo' => mb_strtolower((string) ($referencia?->ordenProduccion?->estado ?? 'Pendiente')) !== 'cancelada',
                     'updated_at' => $lineas->max('updated_at'),
                 ];
             })
@@ -670,6 +670,94 @@ class ProduccionController extends Controller
             ->values();
 
         return view('produccion.bom', compact('canManage', 'productos', 'materiales', 'recetas'));
+    }
+
+    /**
+     * Carga una receta BOM en modo edición.
+     */
+    public function bomEdit(int $id): View
+    {
+        abort_unless(PermisoService::canAccessModule(Auth::user(), 'Produccion'), 403);
+
+        $canManage = $this->canManage();
+
+        $productos = TipoProducto::query()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn (TipoProducto $producto): object => (object) [
+                'id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'sku' => $producto->slug,
+            ]);
+
+        $materiales = Insumo::query()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn (Insumo $material): object => (object) [
+                'id' => $material->id,
+                'nombre' => $material->nombre,
+                'stock' => (float) $material->stock_actual,
+            ]);
+
+        $recetas = OrdenProduccionMaterial::query()
+            ->with(['ordenProduccion.tipoProducto:id,nombre,slug', 'insumo:id,nombre', 'unidadMedida:id,nombre,abreviatura'])
+            ->whereHas('ordenProduccion', function ($query): void {
+                $query->where('es_plantilla_bom', true);
+            })
+            ->orderByDesc('updated_at')
+            ->limit(300)
+            ->get()
+            ->groupBy('orden_produccion_id')
+            ->map(function ($lineas): object {
+                /** @var OrdenProduccionMaterial|null $referencia */
+                $referencia = $lineas->first();
+
+                return (object) [
+                    'id' => $referencia?->orden_produccion_id,
+                    'producto' => (object) [
+                        'nombre' => $referencia?->ordenProduccion?->tipoProducto?->nombre,
+                        'sku' => $referencia?->ordenProduccion?->tipoProducto?->slug,
+                    ],
+                    'materiales' => $lineas
+                        ->map(fn (OrdenProduccionMaterial $linea): object => (object) [
+                            'nombre' => $linea->insumo?->nombre,
+                            'cantidad_base' => (float) $linea->cantidad_necesaria,
+                            'unidad' => $linea->unidadMedida?->abreviatura ?: $linea->unidadMedida?->nombre,
+                            'activo' => mb_strtolower((string) $linea->estado_asignacion) !== 'cancelado',
+                        ])
+                        ->values(),
+                    'activo' => mb_strtolower((string) ($referencia?->ordenProduccion?->estado ?? 'Pendiente')) !== 'cancelada',
+                    'updated_at' => $lineas->max('updated_at'),
+                ];
+            })
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $ordenBase = OrdenProduccion::query()
+            ->with(['tipoProducto:id,nombre', 'materiales' => function ($query): void {
+                $query->with('insumo:id,nombre')->orderBy('numero_linea');
+            }])
+            ->whereKey($id)
+            ->where('es_plantilla_bom', true)
+            ->firstOrFail();
+
+        $recetaEditando = (object) [
+            'id' => $ordenBase->id,
+            'producto_nombre' => (string) ($ordenBase->tipoProducto?->nombre ?? ''),
+            'activo' => mb_strtolower((string) $ordenBase->estado) !== 'cancelada',
+            'materiales' => $ordenBase->materiales
+                ->values()
+                ->map(fn (OrdenProduccionMaterial $linea): object => (object) [
+                    'material_id' => (int) $linea->insumo_id,
+                    'cantidad_base' => (float) $linea->cantidad_necesaria,
+                    'activo' => mb_strtolower((string) $linea->estado_asignacion) !== 'cancelado',
+                ])
+                ->all(),
+        ];
+
+        return view('produccion.bom', compact('canManage', 'productos', 'materiales', 'recetas', 'recetaEditando'));
     }
 
     /**
@@ -699,45 +787,132 @@ class ProduccionController extends Controller
         DB::transaction(function () use ($data, $unidadId, $producto): void {
             $ordenBase = $this->obtenerOrdenPlantillaBom((int) $producto->id, (int) $unidadId);
 
-            foreach ($data['material_id'] as $i => $materialId) {
-                $insumo = Insumo::query()->find((int) $materialId);
-
-                if (! $insumo) {
-                    continue;
-                }
-
-                $cantidadBase = (float) ($data['cantidad_base'][$i] ?? 0);
-                $isActivo = (string) ($data['activo'][$i] ?? '1') === '1';
-
-                $linea = OrdenProduccionMaterial::query()
-                    ->where('orden_produccion_id', $ordenBase->id)
-                    ->where('insumo_id', $insumo->id)
-                    ->first();
-
-                if ($linea) {
-                    $linea->update([
-                        'unidad_medida_id' => (int) $insumo->unidad_medida_id,
-                        'cantidad_necesaria' => $cantidadBase,
-                        'estado_asignacion' => $isActivo ? 'Asignado' : 'Pendiente',
-                        'notas_asignacion' => 'Actualizado desde BOM.',
-                    ]);
-                } else {
-                    OrdenProduccionMaterial::query()->create([
-                        'orden_produccion_id' => $ordenBase->id,
-                        'insumo_id' => $insumo->id,
-                        'unidad_medida_id' => (int) $insumo->unidad_medida_id,
-                        'cantidad_necesaria' => $cantidadBase,
-                        'cantidad_utilizada' => 0,
-                        'cantidad_desperdicio' => 0,
-                        'estado_asignacion' => $isActivo ? 'Asignado' : 'Pendiente',
-                        'notas_asignacion' => 'Creado desde BOM.',
-                        'numero_linea' => $i + 1,
-                    ]);
-                }
-            }
+            $this->guardarLineasBom($ordenBase, $data);
         });
 
         return redirect()->route('produccion.bom.index')->with('ok', 'Líneas de BOM guardadas correctamente.');
+    }
+
+    /**
+     * Actualiza una receta BOM existente.
+     */
+    public function bomUpdate(StoreBomRequest $request, int $id): RedirectResponse
+    {
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion', 'editar'), 403);
+
+        $ordenBase = OrdenProduccion::query()
+            ->whereKey($id)
+            ->where('es_plantilla_bom', true)
+            ->firstOrFail();
+
+        $data = $request->validated();
+
+        DB::transaction(function () use ($ordenBase, $data): void {
+            $this->guardarLineasBom($ordenBase, $data);
+        });
+
+        return redirect()->route('produccion.bom.index')->with('ok', 'BOM actualizado correctamente.');
+    }
+
+    /**
+     * Permite activar o desactivar manualmente una receta BOM desde el tablero.
+     */
+    public function bomToggleEstado(Request $request, int $id): RedirectResponse
+    {
+        abort_unless(PermisoService::canAccessModule($request->user(), 'Produccion', 'editar'), 403);
+
+        $ordenBase = OrdenProduccion::query()
+            ->with('materiales')
+            ->whereKey($id)
+            ->where('es_plantilla_bom', true)
+            ->firstOrFail();
+
+        if ($ordenBase->materiales->isEmpty()) {
+            return redirect()->route('produccion.bom.index')->withErrors([
+                'producto_nombre' => 'La receta seleccionada no tiene materiales para cambiar su estado.',
+            ]);
+        }
+
+        $estadoActual = $ordenBase->materiales
+            ->contains(fn (OrdenProduccionMaterial $linea): bool => mb_strtolower((string) $linea->estado_asignacion) !== 'cancelado');
+
+        $debeActivarse = match ((string) $request->input('activo', $estadoActual ? '0' : '1')) {
+            '1', 'true', 'on' => true,
+            '0', 'false', 'off' => false,
+            default => ! $estadoActual,
+        };
+
+        DB::transaction(function () use ($ordenBase, $debeActivarse): void {
+            $ordenBase->update([
+                'estado' => $debeActivarse ? OrdenProduccion::ESTADO_PENDIENTE : OrdenProduccion::ESTADO_CANCELADA,
+            ]);
+        });
+
+        return redirect()->route('produccion.bom.index')->with('ok', $debeActivarse
+            ? 'La receta BOM fue activada correctamente.'
+            : 'La receta BOM fue marcada como inactiva.');
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function guardarLineasBom(OrdenProduccion $ordenBase, array $data): void
+    {
+        $materialesProcesados = [];
+        $activoGeneral = (string) ($data['activo_general'] ?? '1') === '1';
+
+        foreach ($data['material_id'] as $i => $materialId) {
+            $insumo = Insumo::query()->find((int) $materialId);
+
+            if (! $insumo) {
+                continue;
+            }
+
+            $cantidadBase = (float) ($data['cantidad_base'][$i] ?? 0);
+            $isActivo = (string) ($data['activo'][$i] ?? '1') === '1';
+            $estado = $isActivo ? 'Asignado' : 'cancelado';
+
+            $linea = OrdenProduccionMaterial::query()
+                ->where('orden_produccion_id', $ordenBase->id)
+                ->where('insumo_id', $insumo->id)
+                ->first();
+
+            if ($linea) {
+                $linea->update([
+                    'unidad_medida_id' => (int) $insumo->unidad_medida_id,
+                    'cantidad_necesaria' => $cantidadBase,
+                    'estado_asignacion' => $estado,
+                    'notas_asignacion' => 'Actualizado desde BOM.',
+                    'numero_linea' => $i + 1,
+                ]);
+            } else {
+                OrdenProduccionMaterial::query()->create([
+                    'orden_produccion_id' => $ordenBase->id,
+                    'insumo_id' => $insumo->id,
+                    'unidad_medida_id' => (int) $insumo->unidad_medida_id,
+                    'cantidad_necesaria' => $cantidadBase,
+                    'cantidad_utilizada' => 0,
+                    'cantidad_desperdicio' => 0,
+                    'estado_asignacion' => $estado,
+                    'notas_asignacion' => 'Creado desde BOM.',
+                    'numero_linea' => $i + 1,
+                ]);
+            }
+
+            $materialesProcesados[] = (int) $insumo->id;
+        }
+
+        OrdenProduccionMaterial::query()
+            ->where('orden_produccion_id', $ordenBase->id)
+            ->whereNotIn('insumo_id', $materialesProcesados)
+            ->update([
+                'estado_asignacion' => 'cancelado',
+                'notas_asignacion' => 'Desactivado por edición de BOM.',
+            ]);
+
+        $ordenBase->update([
+            'estado' => $activoGeneral ? OrdenProduccion::ESTADO_PENDIENTE : OrdenProduccion::ESTADO_CANCELADA,
+        ]);
     }
 
     private function resolverTipoProductoParaBom(string $nombreProducto): ?TipoProducto

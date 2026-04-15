@@ -1,12 +1,26 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $isEditing = isset($recetaEditando) && $recetaEditando;
+    $formAction = $isEditing
+        ? route('produccion.bom.update', ['id' => $recetaEditando->id])
+        : route('produccion.bom.store');
+    $estadoGeneral = old('activo_general', $isEditing ? (!empty($recetaEditando->activo) ? '1' : '0') : '1');
+@endphp
 <div class="container mx-auto px-4 py-6">
     {{-- Encabezado --}}
     <div class="mb-6">
         <h1 class="text-3xl font-extrabold text-slate-800">Ordenes y receta de producción</h1>
         <p class="text-slate-500">Define la receta (BOM) de materiales para fabricar el catálogo de productos de acampar.</p>
     </div>
+
+    {{-- Mensajes --}}
+    @if (session('ok'))
+        <div class="mt-4 bg-green-50 border border-green-200 text-green-800 p-4 rounded-xl shadow-sm">
+            <span class="font-bold">Listo:</span> {{ session('ok') }}
+        </div>
+    @endif
 
     {{-- Errores --}}
     @if ($errors->any())
@@ -28,11 +42,26 @@
         </div>
     @else
         <div class="mt-6 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+            @if($isEditing)
+                <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-sm">
+                            Editando BOM de <strong>{{ $recetaEditando->producto_nombre }}</strong>. Puedes modificar, agregar o quitar materiales.
+                        </p>
+                        <p class="text-xs mt-1">
+                            Estado actual:
+                            <strong>{{ $estadoGeneral === '1' ? 'Activa' : 'Inactiva' }}</strong>
+                        </p>
+                    </div>
+                    <a href="{{ route('produccion.bom.index') }}" class="text-xs font-bold px-3 py-2 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 transition-colors">Cancelar edición</a>
+                </div>
+            @endif
+
             <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                 </svg>
-                Nueva línea de productos
+                {{ $isEditing ? 'Editar receta BOM' : 'Nueva línea de productos' }}
             </h2>
 
             <!-- Stepper Indicator -->
@@ -55,8 +84,11 @@
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('produccion.bom.store') }}" class="space-y-6" id="bomForm">
+            <form method="POST" action="{{ $formAction }}" class="space-y-6" id="bomForm">
                 @csrf
+                @if($isEditing)
+                    @method('PUT')
+                @endif
 
                 <!-- Paso 1: Seleccionar Producto -->
                 <div id="step1-content" class="step-content">
@@ -75,10 +107,11 @@
                                     name="producto_nombre"
                                     type="text"
                                     list="productos_existentes"
-                                    value="{{ old('producto_nombre') }}"
+                                    value="{{ old('producto_nombre', $isEditing ? $recetaEditando->producto_nombre : '') }}"
                                     required
                                     maxlength="100"
                                     placeholder="Escribe el producto a crear o selecciona uno existente"
+                                    @if($isEditing) readonly @endif
                                     class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all bg-white">
                                 <datalist id="productos_existentes">
                                     @foreach ($productos as $producto)
@@ -107,9 +140,14 @@
                         <!-- Filas de Materiales -->
                         <div id="bomRows" class="space-y-4">
                             @php
-                                $oldMaterials = old('material_id', []);
-                                $oldCantidades = old('cantidad_base', []);
-                                $oldActivos = old('activo', []);
+                                $editMateriales = collect($isEditing ? ($recetaEditando->materiales ?? []) : []);
+                                $defaultMaterials = $editMateriales->pluck('material_id')->all();
+                                $defaultCantidades = $editMateriales->pluck('cantidad_base')->all();
+                                $defaultActivos = $editMateriales->map(fn ($m) => !empty($m->activo) ? '1' : '0')->all();
+
+                                $oldMaterials = old('material_id', $defaultMaterials);
+                                $oldCantidades = old('cantidad_base', $defaultCantidades);
+                                $oldActivos = old('activo', $defaultActivos);
                                 $rows = max(count($oldMaterials), 1);
                             @endphp
 
@@ -172,12 +210,17 @@
 
                 <!-- Paso 3: Confirmar y Guardar -->
                 <div id="step3-content" class="step-content hidden">
-                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                        <h3 class="text-md font-semibold text-slate-800 mb-4">Paso 3: Confirmar y Guardar</h3>
-                        <p class="text-slate-600 mb-4">Revisa la información antes de guardar la receta de materiales.</p>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-4">
+                        <div>
+                            <h3 class="text-md font-semibold text-slate-800 mb-2">Paso 3: Confirmar y Guardar</h3>
+                            <p class="text-slate-600">Revisa la información antes de guardar la receta de materiales.</p>
+                        </div>
+
+                        <input type="hidden" name="activo_general" id="activo_general" value="{{ (string) $estadoGeneral === '1' ? '1' : '0' }}">
+
                         <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
                             <p class="text-yellow-800 text-sm">
-                                <strong>Nota:</strong> Una vez guardada, la receta se activará para el producto seleccionado. Asegúrate de que todos los materiales y cantidades sean correctos.
+                                <strong>Nota:</strong> El estado general de la receta se puede cambiar desde el tablón principal en la columna de estado.
                             </p>
                         </div>
                     </div>
@@ -196,7 +239,7 @@
                             <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
-                            Guardar líneas
+                            {{ $isEditing ? 'Actualizar BOM' : 'Guardar líneas' }}
                         </button>
                     </div>
                 </div>
@@ -215,6 +258,7 @@
                         <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500">SKU</th>
                         <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500">Materiales de receta</th>
                         <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-center">Activa</th>
+                        <th class="p-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -227,12 +271,17 @@
                                 @if(($receta->materiales ?? collect())->isNotEmpty())
                                     <ul class="space-y-1">
                                         @foreach ($receta->materiales as $material)
-                                            <li class="text-slate-700">
-                                                {{ $material->nombre ?? '-' }}
-                                                <span class="text-slate-500">
-                                                    x {{ rtrim(rtrim(number_format((float) $material->cantidad_base, 4), '0'), '.') }}
-                                                    {{ $material->unidad ? ' ' . $material->unidad : '' }}
+                                            <li class="text-slate-700 flex flex-wrap items-center gap-2">
+                                                <span>
+                                                    {{ $material->nombre ?? '-' }}
+                                                    <span class="text-slate-500">
+                                                        x {{ rtrim(rtrim(number_format((float) $material->cantidad_base, 4), '0'), '.') }}
+                                                        {{ $material->unidad ? ' ' . $material->unidad : '' }}
+                                                    </span>
                                                 </span>
+                                                @if(!($material->activo ?? true))
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500">Inactivo</span>
+                                                @endif
                                             </li>
                                         @endforeach
                                     </ul>
@@ -241,20 +290,60 @@
                                 @endif
                             </td>
                             <td class="p-4 text-center">
-                                @if($receta->activo)
-                                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Si
-                                    </span>
+                                <div class="flex flex-col items-center gap-2">
+                                    @if($receta->activo)
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Activa
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                            <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Inactiva
+                                        </span>
+                                    @endif
+
+                                    @if($canManage)
+                                        <form method="POST" action="{{ route('produccion.bom.toggle-estado', ['id' => $receta->id]) }}" class="flex items-center gap-2">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="hidden" name="activo" value="0">
+                                            <label class="group relative inline-flex items-center cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    name="activo"
+                                                    value="1"
+                                                    class="sr-only peer"
+                                                    onchange="this.form.submit()"
+                                                    @checked($receta->activo)>
+
+                                                <div class="flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-2 py-1 transition-all duration-200 shadow-sm group-hover:shadow dark:bg-slate-800 dark:border-slate-600">
+                                                    <span class="text-[10px] font-bold uppercase tracking-wide {{ $receta->activo ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-300' }}">
+                                                        {{ $receta->activo ? 'On' : 'Off' }}
+                                                    </span>
+
+                                                    <div class="relative h-6 w-11 rounded-full bg-slate-300 transition-colors duration-300 peer-checked:bg-emerald-500 dark:bg-slate-600 dark:peer-checked:bg-emerald-400">
+                                                        <span class="absolute left-[2px] top-[2px] flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] shadow-sm transition-all duration-300 peer-checked:translate-x-5 dark:bg-slate-100">
+                                                            {{ $receta->activo ? '✓' : '•' }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </form>
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="p-4 text-center">
+                                @if($canManage)
+                                    <a href="{{ route('produccion.bom.edit', ['id' => $receta->id]) }}" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
+                                        Editar BOM
+                                    </a>
                                 @else
-                                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-                                        <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> No
-                                    </span>
+                                    <span class="text-xs text-slate-400">Sin acceso</span>
                                 @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="p-8 text-center text-slate-500 italic">
+                            <td colspan="6" class="p-8 text-center text-slate-500 italic">
                                 Aún no hay líneas de materiales registradas.
                             </td>
                         </tr>

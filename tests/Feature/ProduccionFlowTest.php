@@ -134,6 +134,55 @@ class ProduccionFlowTest extends TestCase
         ]);
     }
 
+    public function test_bom_status_can_be_updated_from_edit_page(): void
+    {
+        $fixtures = $this->crearFixturesProduccion();
+
+        $this->actingAs($fixtures['user'])->post(route('produccion.bom.store'), [
+            'producto_nombre' => $fixtures['tipoProducto']->nombre,
+            'material_id' => [$fixtures['insumo']->id],
+            'cantidad_base' => [2.5],
+            'activo' => ['1'],
+            'activo_general' => '1',
+        ])->assertRedirect(route('produccion.bom.index'));
+
+        $ordenBom = OrdenProduccion::query()
+            ->where('es_plantilla_bom', true)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->actingAs($fixtures['user'])
+            ->put(route('produccion.bom.update', ['id' => $ordenBom->id]), [
+                'producto_nombre' => $fixtures['tipoProducto']->nombre,
+                'material_id' => [$fixtures['insumo']->id],
+                'cantidad_base' => [2.5],
+                'activo' => ['1'],
+                'activo_general' => '0',
+            ])
+            ->assertRedirect(route('produccion.bom.index'));
+
+        $ordenBom->refresh();
+        $this->assertSame(OrdenProduccion::ESTADO_CANCELADA, (string) $ordenBom->estado);
+
+        $this->actingAs($fixtures['user'])
+            ->put(route('produccion.bom.update', ['id' => $ordenBom->id]), [
+                'producto_nombre' => $fixtures['tipoProducto']->nombre,
+                'material_id' => [$fixtures['insumo']->id],
+                'cantidad_base' => [2.5],
+                'activo' => ['1'],
+                'activo_general' => '1',
+            ])
+            ->assertRedirect(route('produccion.bom.index'));
+
+        $ordenBom->refresh();
+        $this->assertSame(OrdenProduccion::ESTADO_PENDIENTE, (string) $ordenBom->estado);
+        $this->assertDatabaseHas('ordenes_produccion_materiales', [
+            'orden_produccion_id' => $ordenBom->id,
+            'insumo_id' => $fixtures['insumo']->id,
+            'estado_asignacion' => 'Asignado',
+        ]);
+    }
+
     /**
      * @return array{user: User, tipoProducto: TipoProducto, insumo: Insumo, lote: LoteInsumo}
      */

@@ -125,7 +125,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Producción BOM
     Route::get('produccion/bom', [ProduccionController::class, 'bomIndex'])->name('produccion.bom.index');
+    Route::get('produccion/bom/{id}/edit', [ProduccionController::class, 'bomEdit'])->name('produccion.bom.edit');
     Route::post('produccion/bom', [ProduccionController::class, 'bomStore'])->name('produccion.bom.store');
+    Route::put('produccion/bom/{id}', [ProduccionController::class, 'bomUpdate'])->name('produccion.bom.update');
+    Route::patch('produccion/bom/{id}/toggle-estado', [ProduccionController::class, 'bomToggleEstado'])->name('produccion.bom.toggle-estado');
 
     // Producción plantillas de etapas
     Route::get('produccion/plantillas', [PlantillaEtapaController::class, 'index'])->name('produccion.plantillas.index');
