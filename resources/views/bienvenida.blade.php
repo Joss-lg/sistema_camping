@@ -58,8 +58,13 @@
     </main>
 
     <footer class="bg-gray-800 text-white py-6 z-10 bg-opacity-90 w-full absolute bottom-0 left-0">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-1">
             <p class="text-gray-300">&copy; 2026 LogiCamp.</p>
+            <p>
+                <a href="https://ollintem.com.mx/" target="_blank" rel="noopener noreferrer" class="text-gray-300 hover:text-white transition-colors duration-200">
+                    Hecho por Ollintem
+                </a>
+            </p>
         </div>
     </footer>
 </div>
