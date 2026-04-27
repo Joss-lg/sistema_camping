@@ -1,3 +1,55 @@
+# Sistema Camping
+
+Sistema de gestión de producción, logística, trazabilidad e inventario para una empresa de camping.
+
+---
+
+## Requisitos
+
+- PHP >= 8.2
+- Composer
+- Node.js >= 18 y npm
+- MySQL >= 8.0
+
+## Instalación
+
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/Joss-lg/sistema_camping.git
+cd sistema_camping
+
+# 2. Instalar dependencias PHP
+composer install
+
+# 3. Instalar dependencias JS y compilar assets
+npm install
+npm run build
+
+# 4. Configurar el entorno
+cp .env.example .env
+php artisan key:generate
+```
+
+Edita `.env` y configura la conexión a tu base de datos:
+
+```env
+DB_DATABASE=sistema_camping
+DB_USERNAME=root
+DB_PASSWORD=tu_password
+```
+
+```bash
+# 5. Crear la base de datos y ejecutar migraciones con datos de prueba
+php artisan migrate --seed
+
+# 6. Levantar el servidor local
+php artisan serve
+```
+
+La aplicación estará disponible en `http://127.0.0.1:8000`.
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
