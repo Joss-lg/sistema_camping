@@ -78,7 +78,7 @@
                 <a href="{{ route('reportes.export.csv', ['type' => 'entregas', 'from' => $from, 'to' => $to]) }}" 
                    class="text-[11px] bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg font-bold uppercase transition-all flex items-center gap-2">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Exportar CSV
+                    Exportar EXCEL
                 </a>
             </div>
             <div class="overflow-x-auto">

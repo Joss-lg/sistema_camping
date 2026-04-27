@@ -25,8 +25,8 @@ return new class extends Migration
             $table->integer('numero_ejecucion')->default(1);
 
             // Dates - full precision
-            $table->timestamp('fecha_inicio_prevista');
-            $table->timestamp('fecha_fin_prevista');
+            $table->timestamp('fecha_inicio_prevista')->nullable();
+            $table->timestamp('fecha_fin_prevista')->nullable();
             $table->timestamp('fecha_inicio_real')->nullable();
             $table->timestamp('fecha_fin_real')->nullable();
 

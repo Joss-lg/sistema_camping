@@ -68,6 +68,10 @@
             },
             openSidebar() {
                 this.sidebarOpen = true;
+            },
+            scrollToTop() {
+                const main = document.querySelector('main');
+                if (main) { main.scrollTo({ top: 0, behavior: 'smooth' }); }
             }
         }"
         x-on:keydown.escape.window="closeSidebar()"
@@ -317,6 +321,7 @@
                 <button
                     type="button"
                     x-on:click="openSidebar()"
+                    x-ref="navToggleButton"
                     :aria-expanded="sidebarOpen.toString()"
                     class="inline-flex items-center gap-3 rounded-2xl border border-emerald-700 bg-emerald-600 px-3.5 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-900/20 transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2"
                     aria-label="Abrir sidebar"
@@ -422,6 +427,7 @@
 
                 @yield('content')
             </div>
+
             @else
                 @yield('content')
             @endif
@@ -430,5 +436,18 @@
 
 
     @livewireScripts
+    @if(! (isset($hideSidebar) && $hideSidebar))
+    <button
+        type="button"
+        onclick="var m=document.querySelector('main');if(m){m.scrollTop=0;}window.scrollTo({top:0,behavior:'smooth'});"
+        style="position:fixed;bottom:1.25rem;right:1.25rem;z-index:9999;width:3rem;height:3rem;border-radius:9999px;background-color:#059669;border:2px solid #047857;color:#fff;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 10px 15px -3px rgba(0,0,0,.2);cursor:pointer;"
+        aria-label="Volver arriba"
+        title="Volver arriba"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:1.25rem;height:1.25rem;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+        </svg>
+    </button>
+    @endif
 </body>
 </html>
